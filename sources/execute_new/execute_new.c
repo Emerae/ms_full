@@ -147,7 +147,7 @@ int builtin_env(t_list *envl)
     while (cur)
     {
         t_env *e = (t_env *)cur->content;
-        if (e->exported)
+        if (e->exported >= 1 && e->value != NULL)
         {
             ft_putstr_fd(e->var, STDOUT_FILENO);
             ft_putchar_fd('=', STDOUT_FILENO);

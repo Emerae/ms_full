@@ -15,33 +15,50 @@ int	redir_type_from_str(const char *s)
 	return (-2);
 }
 
-int	cy2_fill_redir_1(t_input *node, t_redir **head, t_redir **last)
+int cy2_fill_redir_1(t_input *node, t_redir **head, t_redir **last)
 {
-	t_redir	*new_redir;
-	int		type;
+    t_redir *new_redir;
+    int     type;
+    t_input *file_node;
+    int     nodes_skipped = 0;
 
-	if (!node || !node->next)
-		return (0);
-	type = redir_type_from_str(node->input);
-	if (type < 0)
-		return (0);
-	new_redir = malloc(sizeof(t_redir));
-	if (!new_redir)
-		return (0);
-	new_redir->type = type;
-	new_redir->file = cy_true_strdup(node->next->input);
-	if (!new_redir->file)
-	{
-		free(new_redir);
-		return (0);
-	}
-	new_redir->next = NULL;
-	if (!*head)
-		*head = new_redir;
-	else
-		(*last)->next = new_redir;
-	*last = new_redir;
-	return (1);
+    if (!node || !node->next)
+        return (0);
+    type = redir_type_from_str(node->input);
+    if (type < 0)
+        return (0);
+    
+    // Sauter les nœuds d'espace pour trouver le nom de fichier
+    file_node = node->next;
+    nodes_skipped = 1;  // Compter le premier saut
+    
+    while (file_node && file_node->type == 1) { // Type 1 = espace
+        file_node = file_node->next;
+        nodes_skipped++;
+    }
+        
+    if (!file_node) // S'assurer qu'il y a bien un nom de fichier
+        return (0);
+        
+    new_redir = malloc(sizeof(t_redir));
+    if (!new_redir)
+        return (0);
+    new_redir->type = type;
+    new_redir->file = cy_true_strdup(file_node->input);
+    if (!new_redir->file)
+    {
+        free(new_redir);
+        return (0);
+    }
+    new_redir->next = NULL;
+    if (!*head)
+        *head = new_redir;
+    else
+        (*last)->next = new_redir;
+    *last = new_redir;
+    
+    // Retourner le nombre de nœuds parcourus au total
+    return (nodes_skipped);
 }
 
 int	cy2_fill_redir_2(t_input *node, int *nature, int *flag)
