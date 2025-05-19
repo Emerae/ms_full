@@ -43,24 +43,37 @@ int	cy3_fill_input_type(t_input *head)
 	return (0);
 }
 
-int	cy3_substi_check(t_input **head_input, char **env)
+int cy3_substi_check(t_input **head_input, char **env)
 {
-	int	ret;
+    int ret;
 
-	(void) env;
-	ret = cy3_fill_input_type(*head_input);
-	if (ret)
-	{
-		cy0_free_input_list(*head_input);
-		return (1);
-	}
-	print_input_list(*head_input);
-	ret = cy3_fuse_nospace(*head_input);
-	if (ret)
-	{
-		cy0_free_input_list(*head_input);
-		return (1);
-	}
-	printf("subtsi check success\n");
-	return (0);
+    // Remplir les types d'entrée
+    ret = cy3_fill_input_type(*head_input);
+    if (ret)
+    {
+        cy0_free_input_list(*head_input);
+        return (1);
+    }
+    print_input_list(*head_input);
+    
+    // Fusionner les nœuds sans espace
+    ret = cy3_fuse_nospace(*head_input);
+    if (ret)
+    {
+        cy0_free_input_list(*head_input);
+        return (1);
+    }
+    
+    // Ajouter l'expansion des variables d'environnement ici
+    printf("DEBUG: Appel de cy3_scan_dollar_syntax pour l'expansion des variables\n");
+    ret = cy3_scan_dollar_syntax(*head_input, env);
+    if (ret)
+    {
+        printf("ERROR: Échec de l'expansion des variables\n");
+        cy0_free_input_list(*head_input);
+        return (1);
+    }
+    
+    printf("subtsi check success\n");
+    return (0);
 }
