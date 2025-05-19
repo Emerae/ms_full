@@ -80,20 +80,28 @@ t_cmd	*cy2_convert_cmd(t_input *head_input)
 {
 	t_cmdconvert	c;
 
+    printf("DEBUG: cy2_convert_cmd début avec head_input=%p\n", head_input);
 	c.head_cmd = init_cmd();
 	if (!c.head_cmd)
 	{
 		printf("Failed alloc for head_cmd\n");
 		return (NULL);
 	}
+	printf("DEBUG: cy2_convert_cmd initialisé avec head_cmd=%p\n", c.head_cmd);
 	c.current_cmd = c.head_cmd;
+	printf("DEBUG: cy2_convert_cmd initialisé avec current_cmd=%p\n", c.current_cmd);
 	c.head_input = head_input;
+	printf("DEBUG: cy2_convert_cmd initialisé avec head_input=%p\n", c.head_input);
 	c.current_input = head_input;
+	printf("DEBUG: cy2_convert_cmd initialisé avec current_input=%p\n", c.current_input);
 	c.n_delimiter = 0;
+	printf("DEBUG: cy2_convert_cmd initialisé avec n_delimiter=%d\n", c.n_delimiter);
 	c.nature_delimiter = 0;
+	printf("DEBUG: cy2_convert_cmd initialisé avec nature_delimiter=%d\n", c.nature_delimiter);
 	if (!cy2_convert_cmd1a(&c))
 		return (NULL);
 	cy2_free_first_cmd_node(&c.head_cmd);
+	printf("DEBUG: cy2_convert_cmd fin avec head_cmd=%p\n", c.head_cmd);
 	return (c.head_cmd);
 }
 // nature_delimiter : numero ou NULL ou > ou |;

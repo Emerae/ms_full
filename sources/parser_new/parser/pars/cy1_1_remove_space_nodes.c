@@ -26,18 +26,29 @@ void	cy1_remove_space_nodes_1(t_input **head_input, t_input **current)
 	cy1_remove_space_nodes_free(to_free);
 }
 
-void	cy1_remove_space_nodes(t_input **head_input)
+void cy1_remove_space_nodes(t_input **head_input)
 {
-	t_input	*current;
-
-	if (!head_input || !*head_input)
-		return ;
-	current = *head_input;
-	while (current)
-	{
-		if (current->type == 1)
-			cy1_remove_space_nodes_1(head_input, &current);
-		else
-			current = current->next;
-	}
+    printf("DEBUG: Entrée dans cy1_remove_space_nodes\n");
+    
+    // Ne rien faire pour l'instant, simplement retourner
+    // Cela préservera les nœuds d'espace au lieu de les supprimer
+    
+    printf("DEBUG: Sortie de cy1_remove_space_nodes sans modification\n");
+    return;
+    
+    /* Code original commenté
+    t_input *current;
+    
+    if (!head_input || !*head_input)
+        return;
+        
+    current = *head_input;
+    while (current)
+    {
+        if (current->type == 1)
+            cy1_remove_space_nodes_1(head_input, &current);
+        else
+            current = current->next;
+    }
+    */
 }

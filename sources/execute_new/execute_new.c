@@ -11,22 +11,31 @@
 /* ------------ helpers builtin simple ------------- */
 static int builtin_echo(char **argv)
 {
+    printf("DEBUG: builtin_echo appelé\n");
     int i = 1;
     int newline = 1;
+    
     if (argv[1] && ft_strcmp(argv[1], "-n") == 0)
     {
+        printf("DEBUG: Option -n détectée\n");
         newline = 0;
         i = 2;
     }
+    
+    printf("DEBUG: Début de l'affichage des arguments\n");
     while (argv[i])
     {
+        printf("DEBUG: Affichage de l'argument %d: '%s'\n", i, argv[i]);
         ft_putstr_fd(argv[i], STDOUT_FILENO);
         if (argv[i + 1])
             ft_putchar_fd(' ', STDOUT_FILENO);
         i++;
     }
+    
     if (newline)
         ft_putchar_fd('\n', STDOUT_FILENO);
+    
+    printf("DEBUG: builtin_echo terminé\n");
     return (0);
 }
 
@@ -130,20 +139,29 @@ static int builtin_exit(char **argv)
 static int run_builtin(t_cmd *cmd, t_list **envl)
 {
     char **av = cmd->args;
+    int result = -1;  // Valeur par défaut pour indiquer que ce n'est pas un builtin
+
+    printf("DEBUG: run_builtin appelé avec cmd=%p\n", cmd);
+    if (cmd && cmd->args) {
+        printf("DEBUG: cmd->args[0]=%s\n", cmd->args[0]);
+        if (cmd->args[1])
+            printf("DEBUG: cmd->args[1]=%s\n", cmd->args[1]);
+    }
     if (!av || !av[0])
         return (0);
     if (ft_strcmp(av[0], "echo") == 0)
-        return (builtin_echo(av));
-    if (ft_strcmp(av[0], "pwd") == 0)
-        return (builtin_pwd());
-    if (ft_strcmp(av[0], "env") == 0)
-        return (builtin_env(*envl));
-    if (ft_strcmp(av[0], "exit") == 0)
-        return (builtin_exit(av)); /* never returns */
-    if (ft_strcmp(av[0], "cd") == 0)
-        return (builtin_cd(av, envl));
+        result = builtin_echo(av);
+    else if (ft_strcmp(av[0], "pwd") == 0)
+        result = builtin_pwd();
+    else if (ft_strcmp(av[0], "env") == 0)
+        result = builtin_env(*envl);
+    else if (ft_strcmp(av[0], "exit") == 0)
+        result = builtin_exit(av); /* never returns */
+    else if (ft_strcmp(av[0], "cd") == 0)
+        result = builtin_cd(av, envl);
     /* TODO export unset minimal handling */
-    return (-1);
+    printf("DEBUG: run_builtin terminé avec result=%d\n", result);
+    return (result);
 }
 
 /* ------------ redirections --------------- */
@@ -193,6 +211,12 @@ static int launch_external(char **argv, t_list *envl)
 
 static int exec_simple(t_cmd *cmd, t_list **envl)
 {
+    printf("DEBUG: exec_simple appelé avec cmd=%p\n", cmd);
+    if (cmd && cmd->args) {
+        printf("DEBUG: cmd->args[0]=%s\n", cmd->args[0]);
+        if (cmd->args[1])
+            printf("DEBUG: cmd->args[1]=%s\n", cmd->args[1]);
+    }
     if (!cmd->args || !cmd->args[0])
         return (0);
     /* parent builtins */
@@ -269,11 +293,20 @@ static int execute_pipeline(t_cmd *head, t_list **envl)
 /* ------------ public API ------------- */
 int execute_cmds(t_cmd *cmds, t_list **envl, int *last_status)
 {
+    printf("DEBUG: execute_cmds appelé avec cmds=%p\n", cmds);
+    if (cmds && cmds->args) {
+        printf("DEBUG: Premier argument: %s\n", cmds->args[0]);
+        if (cmds->args[1])
+            printf("DEBUG: Deuxième argument: %s\n", cmds->args[1]);
+    }
+
     if (!cmds)
         return ((*last_status = 1), 1);
     if (cmds->next)
         *last_status = execute_pipeline(cmds, envl);
     else
         *last_status = exec_simple(cmds, envl);
+    
+    printf("DEBUG: execute_cmds terminé avec status=%d\n", *last_status);
     return (*last_status);
 }

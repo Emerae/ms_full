@@ -111,11 +111,10 @@ t_cmd *parse_command_new(char *line, t_list *env, int *status)
                debug_current->type);
         debug_current = debug_current->next;
     }
-    
+    printf("DEBUG: Tentative d'appel à cy2_convert_cmd\n");
     // ASSUREZ-VOUS D'UTILISER LA BONNE SIGNATURE
     t_cmd *cmds = cy2_convert_cmd(head);  // ou &head selon la signature correcte
-    
-    printf("DEBUG: Après cy2_convert_cmd\n");
+    printf("DEBUG: Après cy2_convert_cmd, cmds=%p\n", cmds);
     
     // AJOUT DE DÉBOGAGE POUR CMDS
     if (!cmds) {

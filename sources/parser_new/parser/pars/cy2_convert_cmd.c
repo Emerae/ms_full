@@ -59,7 +59,7 @@ int	find_delim(t_input **current_input, int *nature)
 
 	node = *current_input;
 	ret = 1;
-	if (!current_input || !*current_input)
+	if (!current_input || !*current_input || !nature)
 	{
 		printf("Error: current_input is NULL\n");
 		return (-1);
