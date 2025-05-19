@@ -23,8 +23,8 @@ int append_cmd2(t_cmd *new_cmd, int n_delimiter, t_input **input_node)
     i = 0;
     while (i < n_delimiter && *input_node)
     {
-        // AJOUTEZ CE BLOC: Ignorer les nœuds d'espace
-        if ((*input_node)->type == 1) {
+        // Ignorer les nœuds d'espace et de pipe
+        if ((*input_node)->type == 1 || ((*input_node)->input && (*input_node)->input[0] == '|' && (*input_node)->input[1] == '\0')) {
             *input_node = (*input_node)->next;
             continue;
         }

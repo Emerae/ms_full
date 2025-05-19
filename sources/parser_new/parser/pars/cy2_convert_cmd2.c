@@ -53,27 +53,33 @@ int	cy2_convert_cmd1b(t_cmdconvert *c)
 	return (-1);
 }
 
-int	cy2_convert_cmd1a(t_cmdconvert *c)
+int cy2_convert_cmd1a(t_cmdconvert *c)
 {
-	int	ret;
+    int ret;
 
-	while (1)
-	{
-		ret = cy2_convert_cmd1b(c);
-		if (ret != -1)
-			return (ret);
-		cy2_fill_builtin_id(&c->current_cmd);
-		if (!cy2_convert_cmd2(c))
-			return (0);
-		if (c->nature_delimiter == 3)
-			break ;
-		if (c->nature_delimiter == 2)
-		{
-			c->head_input = c->head_input->next;
-			c->current_input = c->current_input->next;
-		}
-	}
-	return (1);
+    while (1)
+    {
+        ret = cy2_convert_cmd1b(c);
+        if (ret != -1)
+            return (ret);
+        cy2_fill_builtin_id(&c->current_cmd);
+        if (!cy2_convert_cmd2(c))
+            return (0);
+        if (c->nature_delimiter == 3)
+            break;
+        if (c->nature_delimiter == 2) // Cas du pipe
+        {
+            // Assurez-vous que la prochaine commande est créée correctement
+            if (cy_add_empty_cmd_node(c->head_cmd))
+            {
+                cy0_free_cmd_list(c->head_cmd);
+                return (0);
+            }
+            c->current_cmd = c->current_cmd->next;
+            c->current_input = c->current_input->next;
+        }
+    }
+    return (1);
 }
 
 t_cmd	*cy2_convert_cmd(t_input *head_input)

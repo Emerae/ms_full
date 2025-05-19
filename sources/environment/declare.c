@@ -89,28 +89,63 @@ static int	add_new_var(char *var, char *value, t_list **envl, int exported)
 	return (SUCCESS);
 }
 
-int			add_env(char *var, char *value, t_list **envl, int exported)
+int add_env(char *var, char *value, t_list **envl, int exported)
 {
-	t_list	*env;
-
-	env = *envl;
-	while (env)
-	{
-		if (ft_strcmp(((t_env *)env->content)->var, var) == 0)
-		{
-			if (value)
-			{
-				if (((t_env *)env->content)->value)
-					free(((t_env *)env->content)->value);
-				((t_env *)env->content)->value = value;
-			}
-			if (exported > ((t_env *)env->content)->exported)
-				((t_env *)env->content)->exported = exported;
-			return (SUCCESS);
-		}
-		env = env->next;
-	}
-	return (add_new_var(ft_strdup(var), value, envl, exported));
+    printf("DEBUG: add_env appelé pour '%s'='%s', exported=%d\n", 
+           var, value ? value : "NULL", exported);
+    
+    t_list *cur = *envl;
+    
+    // Rechercher si la variable existe déjà
+    while (cur)
+    {
+        t_env *e = (t_env *)cur->content;
+        if (ft_strcmp(e->var, var) == 0)
+        {
+            // Mise à jour de la valeur si fournie
+            if (value)
+            {
+                if (e->value)
+                    free(e->value);
+                e->value = value;
+            }
+            
+            // Mise à jour du statut d'exportation si supérieur
+            if (exported > e->exported)
+                e->exported = exported;
+                
+            printf("DEBUG: Variable '%s' mise à jour\n", var);
+            return (0);
+        }
+        cur = cur->next;
+    }
+    
+    // Si on arrive ici, la variable n'existe pas encore
+    t_env *new_env = malloc(sizeof(t_env));
+    if (!new_env)
+        return (1);
+        
+    new_env->var = ft_strdup(var);
+    new_env->value = value;
+    new_env->exported = exported;
+    
+    if (!new_env->var)
+    {
+        free(new_env);
+        return (1);
+    }
+    
+    t_list *new_node = ft_lstnew(new_env);
+    if (!new_node)
+    {
+        free(new_env->var);
+        free(new_env);
+        return (1);
+    }
+    
+    ft_lstadd_back(envl, new_node);
+    printf("DEBUG: Variable '%s' ajoutée\n", var);
+    return (0);
 }
 
 static int	export_one(char *var, t_list **envl, int exported)

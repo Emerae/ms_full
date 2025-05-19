@@ -6,14 +6,6 @@ LIBFT   = $(LIBFT_DIR)/libft.a
 INCLUDES= -I./includes -I$(LIBFT_DIR)/includes
 
 SRCS    = sources/main.c \
-          sources/builtin/cd.c \
-          sources/builtin/echo.c \
-          sources/builtin/env.c \
-          sources/builtin/exit.c \
-          sources/builtin/export.c \
-          sources/builtin/export_sorted.c \
-          sources/builtin/pwd.c \
-          sources/builtin/unset.c \
           sources/execute_new/env_utils.c \
           sources/execute_new/execute_new.c \
           sources/execute_new/free_cmd.c \

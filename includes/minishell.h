@@ -74,13 +74,14 @@ void	update_last_arg(t_list **envl, t_info *cmd, void *arg);
 ** Built-in
 */
 
-int		ft_cd(t_info *cmd, t_list **envl);
-int		ft_echo(t_info *cmd, t_list **envl);
-int		ft_env(t_info *cmd, t_list **envl);
-int		ft_exit(t_info *cmd, t_list **envl);
-int		ft_export(t_info *cmd, t_list **envl);
-int		ft_pwd(t_info *cmd, t_list **envl);
-int		ft_unset(t_info *cmd, t_list **envl);
+// Dans le fichier header
+int ft_cd(t_info *cmd, t_list **envl);
+int ft_echo(t_info *cmd, t_list **envl);
+int ft_env(t_info *cmd, t_list **envl);
+int ft_exit(t_info *cmd, t_list **envl);
+int ft_export(t_info *cmd, t_list **envl);
+int ft_pwd(t_info *cmd, t_list **envl);
+int ft_unset(t_info *cmd, t_list **envl);
 
 /*
 ** Parsing
@@ -147,7 +148,9 @@ int		error_msg(int error);
 int		error_msg_info(int error, char *info);
 int		should_quit(int size, char *line);
 
-#endif
+
 
 int execute_cmds(t_cmd *cmds, t_list **envl, int *last_status);
 t_cmd *parse_command_new(char *line, t_list *envl, int *status);
+
+#endif
