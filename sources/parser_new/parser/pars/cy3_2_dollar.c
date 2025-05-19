@@ -64,6 +64,9 @@ int	cy3_scan_dollar_syntax_dollar_2(t_input *current,
 
 int	cy3_scan_dollar_syntax_dollar(t_input *current, int *i, char **env)
 {
+	if (!current || !current->input || !i || *i < 0 || 
+        *i >= cy_strlen(current->input) || !env)
+        return (1);
 	if (current->input[*i + 1] == '\0'
 		|| current->input_num[*i + 1] != current->input_num[*i])
 	{
