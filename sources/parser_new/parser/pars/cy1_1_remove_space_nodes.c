@@ -26,7 +26,7 @@ void	cy1_remove_space_nodes_1(t_input **head_input, t_input **current)
 	cy1_remove_space_nodes_free(to_free);
 }
 
-void cy1_remove_space_nodes(t_input **head_input)
+void cy1_remove_space_nodes(t_input **head_input __attribute__((unused)))
 {
     printf("DEBUG: Entrée dans cy1_remove_space_nodes\n");
     

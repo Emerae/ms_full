@@ -16,24 +16,30 @@ void	append_cmd3(t_cmd *new_cmd, t_cmd **current_cmd)
 	printf("append_cmd3: new_cmd->args[0] = %s\n", new_cmd->args[0]);
 }
 
-int	append_cmd2(t_cmd *new_cmd, int n_delimiter, t_input **input_node)
+int append_cmd2(t_cmd *new_cmd, int n_delimiter, t_input **input_node)
 {
-	int	i;
+    int i;
 
-	i = 0;
-	while (i < n_delimiter && *input_node)
-	{
-		new_cmd->args[i] = cy_true_strdup((*input_node)->input);
-		if (!new_cmd->args[i])
-			return (1);
-		*input_node = (*input_node)->next;
-		i = i + 1;
-	}
-	new_cmd->args[i] = NULL;
-	new_cmd->redirs = NULL;
-	new_cmd->builtin_id = -1;
-	new_cmd->next = NULL;
-	return (0);
+    i = 0;
+    while (i < n_delimiter && *input_node)
+    {
+        // AJOUTEZ CE BLOC: Ignorer les nœuds d'espace
+        if ((*input_node)->type == 1) {
+            *input_node = (*input_node)->next;
+            continue;
+        }
+        
+        new_cmd->args[i] = cy_true_strdup((*input_node)->input);
+        if (!new_cmd->args[i])
+            return (1);
+        *input_node = (*input_node)->next;
+        i = i + 1;
+    }
+    new_cmd->args[i] = NULL;
+    new_cmd->redirs = NULL;
+    new_cmd->builtin_id = -1;
+    new_cmd->next = NULL;
+    return (0);
 }
 
 int	append_cmd1(t_cmd **new_cmd, int n_delimiter)

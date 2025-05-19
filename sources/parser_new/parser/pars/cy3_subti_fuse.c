@@ -62,6 +62,7 @@ int	cy3_fuse_nospace(t_input *head)
 	t_input	*current;
 	t_input	*fusing;
 
+	printf("DEBUG: Entrée dans cy3_fuse_nospace avec head=%p\n", head);
 	anchor = head;
 	while (anchor)
 	{
@@ -79,5 +80,6 @@ int	cy3_fuse_nospace(t_input *head)
 		}
 		anchor = anchor->next;
 	}
+    printf("DEBUG: Sortie de cy3_fuse_nospace\n");
 	return (0);
 }
