@@ -1,0 +1,24 @@
+#include "libftfull.h"
+#include <stdlib.h>
+
+char	*ft_strjoin_free(char *s1, char *s2, int free_s1, int free_s2)
+{
+	size_t	l1;
+	size_t	l2;
+	char	*join;
+
+	if (!s1 || !s2)
+		return (NULL);
+	l1 = ft_strlen(s1);
+	l2 = ft_strlen(s2);
+	join = malloc(sizeof(char) * (l1 + l2 + 1));
+	if (!join)
+		return (NULL);
+	ft_strlcpy(join, s1, l1 + 1);
+	ft_strlcpy(join + l1, s2, l2 + 1);
+	if (free_s1)
+		free(s1);
+	if (free_s2)
+		free(s2);
+	return (join);
+} 
