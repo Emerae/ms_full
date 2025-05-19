@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 int	cy4_2contains_redir_ch(char *input)
 {

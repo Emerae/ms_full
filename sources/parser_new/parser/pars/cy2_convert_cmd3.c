@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 void	append_cmd3(t_cmd *new_cmd, t_cmd **current_cmd)
 {

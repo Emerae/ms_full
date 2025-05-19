@@ -49,22 +49,30 @@ static int	set_node_type(t_input *node, int start, int end)
 	return (0);
 }
 
-static int	create_node_1(t_input *new_node, int start, int end, char *input)
+static int create_node_1(t_input *new_node, int start, int end, char *input)
 {
-	new_node->input = cy_strdup(input, start, end);
-	if (!new_node->input)
-	{
-		printf("Failed alloc for text");
-		free(new_node);
-		return (1);
-	}
-	set_node_type(new_node, start, end);
-	new_node->input_type = NULL;
-	new_node->input_num = -1;
-	new_node->prev = NULL;
-	new_node->next = NULL;
-	new_node->number = -1;
-	return (0);
+    // Initialiser TOUS les champs à des valeurs sûres
+    new_node->input = NULL;
+    new_node->input_type = NULL;
+    new_node->input_num = NULL;
+    new_node->prev = NULL;
+    new_node->next = NULL;
+    new_node->number = -1;
+    new_node->type = 0;  // Valeur par défaut sûre
+    
+    // Puis allouer et initialiser input
+    new_node->input = cy_strdup(input, start, end);
+    if (!new_node->input)
+    {
+        printf("Failed alloc for text");
+        free(new_node);
+        return (1);
+    }
+    
+    // Définir correctement le type
+    set_node_type(new_node, start, end);
+    
+    return (0);
 }
 
 t_input	*cy1_create_node(int start, int end, char *input)

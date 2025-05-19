@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 static int	cy3_fuse_nospace_1(t_input *current,
 	t_input *fusing, int lcurrent, int lfusing)

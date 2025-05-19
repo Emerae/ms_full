@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 static int	cy3_fill_input_type_1(t_input *current, int *flag)
 {

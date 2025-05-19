@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 int	redir_type_from_str(const char *s)
 {

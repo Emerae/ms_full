@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 int	cy3_handle_dollar_word_3a(t_input *current, int i, t_dollar_word *s)
 {

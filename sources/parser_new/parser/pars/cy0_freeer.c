@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 void	cy0_free_env(char **env, int i)
 {
@@ -43,12 +43,18 @@ void	cy0_free_input_list(t_input *head)
 	current = head;
 	while (current != NULL)
 	{
-		if (current->input)
+		if (current->input) {
+			printf("DEBUG: Libération de input %p\n", current->input);
 			free(current->input);
-		if (current->input_type)
+		}
+		if (current->input_type) {
+			printf("DEBUG: Libération de input_type %p\n", current->input_type);
 			free(current->input_type);
-		if (current->input_num)
+		}
+		if (current->input_num) {
+			printf("DEBUG: Libération de input_num %p\n", current->input_num);
 			free(current->input_num);
+		}
 		next = current->next;
 		free(current);
 		current = next;

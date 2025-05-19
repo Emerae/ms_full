@@ -92,7 +92,7 @@ static void	parse_and_exec(t_list **envl, char *line)
             tmp = tmp->next;
         if (tmp && tmp->args)
             update_last_arg(envl, NULL, tmp->args[array_len(tmp->args) - 1]);
-        free_cmd_list(cmds);
+        cy0_free_cmd_list(cmds);
     }
     update_env(envl);
     free(line);

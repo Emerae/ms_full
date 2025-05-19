@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 int	cy4_1wrong_char(t_input *head)
 {

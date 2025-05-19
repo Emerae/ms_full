@@ -1,4 +1,4 @@
-#include "../prser.h"
+#include "parser_new.h"
 
 int	cy3_scan_dollar_syntax_2(t_input *current, int i, char **env)
 {

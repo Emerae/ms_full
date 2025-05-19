@@ -13,7 +13,7 @@ void	print_input_list(t_input *head_input)
 		{
 			printf("[%d]inp _%s_\n", current->number, current->input);
 			if (current->input_num)
-				printf("[%d]num _%d_\n", current->number, current->input_num);
+				printf("[%d]num _%s_\n", current->number, current->input_num);
 			if (current->input_type)
 				printf("[%d]typ _%s_\n", current->number, current->input_type);
 			printf("[%d] type: %d\n", current->number, current->type);
