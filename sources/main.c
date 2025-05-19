@@ -75,7 +75,7 @@ int array_len(char **arr)
     return i;
 }
 
-void	parse_and_exec(t_list **envl, char *line)
+void parse_and_exec(t_list **envl, char *line)
 {
     int status = 0;
     t_cmd *cmds = parse_command_new(line, *envl, &status);
@@ -90,8 +90,15 @@ void	parse_and_exec(t_list **envl, char *line)
         t_cmd *tmp = cmds;
         while (tmp && tmp->next)
             tmp = tmp->next;
-        if (tmp && tmp->args)
-            update_last_arg(envl, NULL, tmp->args[array_len(tmp->args) - 1]);
+            
+        // Vérifier que la commande a des arguments non-vides
+        if (tmp && tmp->args && tmp->args[0])
+        {
+            int len = array_len(tmp->args);
+            if (len > 0)  // Vérification supplémentaire que le tableau n'est pas vide
+                update_last_arg(envl, NULL, tmp->args[len - 1]);
+        }
+        
         cy0_free_cmd_list(cmds);
     }
     update_env(envl);

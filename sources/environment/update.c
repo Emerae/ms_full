@@ -72,23 +72,27 @@ void	update_env(t_list **envl)
 	}
 }
 
-void	update_last_arg(t_list **envl, t_info *cmd, void *arg)
+void update_last_arg(t_list **envl, t_info *cmd, void *arg)
 {
-	int	i;
-	char *last_arg;
+    // Si aucun argument n'est fourni, ne rien faire    
+    int i;
+    char *last_arg;
 
-	if (cmd)
-	{
-		i = cmd->start - 1;
-		if (i >= 0)
-			last_arg = ft_strdup(((t_split *)arg)[i].str);
-		else
-			return;
-	}
-	else
-	{
-		last_arg = ft_strdup((char *)arg);
-	}
-	if (last_arg)
-		add_env("_", last_arg, envl, 1);
+    if (!arg)
+        return;
+    if (cmd)
+    {
+        i = cmd->start - 1;
+        if (i >= 0)
+            last_arg = ft_strdup(((t_split *)arg)[i].str);
+        else
+            return;
+    }
+    else
+    {
+        last_arg = ft_strdup((char *)arg);
+    }
+    
+    if (last_arg)
+        add_env("_", last_arg, envl, 1);
 }

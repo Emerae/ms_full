@@ -23,7 +23,7 @@ typedef struct s_cmd
 {
 	char			**args;		// ["ls", "-l", NULL]
 	t_redir			*redirs;	// liste de redirections
-	int				builtin_id;	// -1 si c’est pas un builtin
+	int				builtin_id;	// -1 si c'est pas un builtin
 	struct s_cmd	*next;		// pour les pipes
 }	t_cmd;
 
@@ -228,5 +228,8 @@ int		cy4_5wrong_pipe_log(t_input *head);
 // A delet
 void	print_cmd_list(t_cmd *head_cmd);
 void	print_input_list(t_input *head_input);
+
+// Fonctions de redirection
+int	redir_type_from_str(const char *s);
 
 #endif

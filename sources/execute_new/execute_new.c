@@ -375,31 +375,59 @@ static int run_builtin(t_cmd *cmd, t_list **envl)
 int apply_redirs(t_redir *r)
 {
     int fd;
+    
     while (r)
     {
-        if (r->type == 0)
+        if (r->type == 0)  // Input redirection 
+        {
             fd = open(r->file, O_RDONLY);
-        else if (r->type == 1)
+            if (fd == -1)
+            {
+                perror(r->file);
+                return (1);
+            }
+            
+            // Remplacer stdin par le fichier ouvert
+            dup2(fd, STDIN_FILENO);
+            close(fd);
+        }
+        else if (r->type == 1)  // Output redirection >
+        {
+            // Créer ou tronquer le fichier
             fd = open(r->file, O_CREAT|O_WRONLY|O_TRUNC, 0644);
-        else if (r->type == 2)
+            if (fd == -1)
+            {
+                perror(r->file);
+                return (1);
+            }
+            
+            // Remplacer stdout par le fichier ouvert
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+        }
+        else if (r->type == 2)  // Append redirection >>
+        {
+            // Créer ou ouvrir le fichier en mode append
             fd = open(r->file, O_CREAT|O_WRONLY|O_APPEND, 0644);
-        else
+            if (fd == -1)
+            {
+                perror(r->file);
+                return (1);
+            }
+            
+            // Remplacer stdout par le fichier ouvert
+            dup2(fd, STDOUT_FILENO);
+            close(fd);
+        }
+        else if (r->type == 3)  // Heredoc 
         {
             ft_printf_fd(2, "minishell: heredoc not supported\n");
             return (1);
         }
-        if (fd == -1)
-        {
-            perror(r->file);
-            return (1);
-        }
-        if (r->type == 0 && dup2(fd, STDIN_FILENO) == -1)
-            return (perror("dup2"), 1);
-        if ((r->type == 1 || r->type == 2) && dup2(fd, STDOUT_FILENO) == -1)
-            return (perror("dup2"), 1);
-        close(fd);
+        
         r = r->next;
     }
+    
     return (0);
 }
 
@@ -480,6 +508,17 @@ int exec_simple(t_cmd *cmd, t_list **envl)
     pid_t pid = fork();
     if (pid == -1)
         return (perror("fork"), 1);
+    // Ajouter au début de exec_simple ou juste avant apply_redirs
+    if (cmd->redirs) {
+        printf("DEBUG: Redirections pour la commande %s:\n", cmd->args[0]);
+        t_redir *r_debug = cmd->redirs;
+        int redir_count = 0;
+        while (r_debug) {
+            printf("DEBUG: Redirection %d: type=%d, file=%s\n", 
+                redir_count++, r_debug->type, r_debug->file);
+            r_debug = r_debug->next;
+        }
+    }
     if (pid == 0)
     {
         if (apply_redirs(cmd->redirs))

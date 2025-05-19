@@ -8,7 +8,7 @@ int	cy4_1wrong_char(t_input *head)
 	current = head;
 	while (current)
 	{
-		if (current->input)
+		if (current->input && current->type == 2) /* Vérifier uniquement les nœuds de type texte normal */
 		{
 			i = 0;
 			while (current->input[i])
