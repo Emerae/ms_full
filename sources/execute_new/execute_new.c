@@ -105,27 +105,83 @@ static int builtin_env(t_list *envl)
 
 static int builtin_cd(char **argv, t_list **envl)
 {
-    char *path = argv[1];
-    if (!path)
-        path = get_env_value(*envl, "HOME");
-    if (!path)
-    {
-        ft_putendl_fd("minishell: cd: HOME not set", STDERR_FILENO);
-        return (1);
+    printf("DEBUG: Entrée dans builtin_cd\n");
+    
+    // Vérifier si envl est valide
+    if (!envl || !*envl) {
+        printf("ERROR: Environnement invalide\n");
+        return 1;
     }
-    char old[4096];
-    if (!getcwd(old, sizeof(old)))
-        old[0] = '\0';
-    if (chdir(path) == -1)
-    {
+    
+    // Créer une copie de l'argument pour éviter le use-after-free
+    char *path = NULL;
+    
+    if (argv[1]) {
+        printf("DEBUG: argv[1]=%p\n", argv[1]);
+        path = ft_strdup(argv[1]);  // Dupliquer l'argument
+        if (!path) {
+            perror("ft_strdup");
+            return 1;
+        }
+        printf("DEBUG: Copie de argv[1]=%s\n", path);
+    } else {
+        printf("DEBUG: Recherche de HOME dans l'environnement\n");
+        char *home = get_env_value(*envl, "HOME");
+        if (!home) {
+            ft_putendl_fd("minishell: cd: HOME not set", STDERR_FILENO);
+            return 1;
+        }
+        path = ft_strdup(home);
+        if (!path) {
+            perror("ft_strdup");
+            return 1;
+        }
+        printf("DEBUG: HOME=%s\n", path);
+    }
+    
+    // Obtenir le répertoire courant AVANT de changer
+    char old_dir[4096] = {0};
+    if (!getcwd(old_dir, sizeof(old_dir))) {
+        printf("DEBUG: Impossible d'obtenir le répertoire courant initial\n");
+        // Continuer quand même
+    }
+    
+    // Changer de répertoire
+    printf("DEBUG: Changement de répertoire vers %s\n", path);
+    if (chdir(path) == -1) {
         perror("cd");
-        return (1);
+        free(path);
+        return 1;
     }
-    add_env("OLDPWD", old, envl, 1);
-    char cwd[4096];
-    if (getcwd(cwd, sizeof(cwd)))
-        add_env("PWD", cwd, envl, 1);
-    return (0);
+    
+    // Libérer path immédiatement - évite un oubli
+    free(path);
+    path = NULL;
+    
+    // Obtenir le nouveau répertoire courant
+    char new_dir[4096] = {0};
+    if (!getcwd(new_dir, sizeof(new_dir))) {
+        printf("DEBUG: Impossible d'obtenir le nouveau répertoire courant\n");
+        return 0;  // Succès quand même, le chdir a fonctionné
+    }
+    
+    // Mettre à jour les variables d'environnement avec des copies persistantes
+    if (old_dir[0] != '\0') {
+        printf("DEBUG: Mise à jour de OLDPWD=%s\n", old_dir);
+        char *oldpwd_copy = ft_strdup(old_dir);
+        if (oldpwd_copy) {
+            add_env("OLDPWD", oldpwd_copy, envl, 1);
+        }
+    }
+    
+    printf("DEBUG: Mise à jour de PWD=%s\n", new_dir);
+    char *pwd_copy = ft_strdup(new_dir);
+    if (pwd_copy) {
+        add_env("PWD", pwd_copy, envl, 1);
+    }
+    
+    printf("DEBUG: builtin_cd terminé avec succès\n");
+    return 0;
 }
 
 static int builtin_exit(char **argv)
