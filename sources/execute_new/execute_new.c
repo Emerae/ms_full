@@ -9,7 +9,7 @@
 #include "minishell.h"
 
 /* ------------ helpers builtin simple ------------- */
-static int builtin_echo(char **argv)
+int builtin_echo(char **argv)
 {
     printf("DEBUG: builtin_echo appelé\n");
     int i = 1;
@@ -39,7 +39,7 @@ static int builtin_echo(char **argv)
     return (0);
 }
 
-static int builtin_pwd(void)
+int builtin_pwd(void)
 {
     char cwd[4096];
     if (getcwd(cwd, sizeof(cwd)))
@@ -51,7 +51,7 @@ static int builtin_pwd(void)
     return (1);
 }
 
-static char **env_to_char(t_list *envl)
+char **env_to_char(t_list *envl)
 {
     int len = ft_lstsize(envl);
     char **envp = malloc(sizeof(char*) * (len + 1));
@@ -86,7 +86,7 @@ static char **env_to_char(t_list *envl)
     return (envp);
 }
 
-static int builtin_env(t_list *envl)
+int builtin_env(t_list *envl)
 {
     t_list *cur = envl;
     while (cur)
@@ -103,7 +103,7 @@ static int builtin_env(t_list *envl)
     return (0);
 }
 
-static int builtin_cd(char **argv, t_list **envl)
+int builtin_cd(char **argv, t_list **envl)
 {
     printf("DEBUG: Entrée dans builtin_cd\n");
     
@@ -184,7 +184,7 @@ static int builtin_cd(char **argv, t_list **envl)
     return 0;
 }
 
-static int builtin_export(char **argv, t_list **envl)
+int builtin_export(char **argv, t_list **envl)
 {
     // Si pas d'arguments, afficher les variables exportées
     if (!argv[1])
@@ -281,7 +281,7 @@ static int builtin_export(char **argv, t_list **envl)
     return (status);
 }
 
-static int builtin_exit(char **argv)
+int builtin_exit(char **argv)
 {
     int code = 0;
     if (argv[1])
@@ -295,29 +295,29 @@ static int run_builtin(t_cmd *cmd, t_list **envl)
         return (0);
     
     int result = -1;
-    int fd_out = STDOUT_FILENO;  // Utiliser la sortie standard par défaut
     
-    // Adapter l'appel en fonction du builtin_id
-    if (cmd->builtin_id == 1 || cmd->builtin_id == 2)  // echo
-        result = builtin_echo(cmd, fd_out);
+    // Utiliser directement le builtin_id déterminé par le parser
+    if (cmd->builtin_id == 1 || cmd->builtin_id == 2)  // echo avec ou sans option -n
+        result = builtin_echo(cmd->args);  // Passer cmd->args au lieu de cmd
     else if (cmd->builtin_id == 3)  // cd
-        result = ft_cd((t_info*)cmd, envl);
+        result = builtin_cd(cmd->args, envl);
     else if (cmd->builtin_id == 4)  // pwd
-        result = ft_pwd((t_info*)cmd, envl);
+        result = builtin_pwd();
     else if (cmd->builtin_id == 5)  // export
-        result = ft_export((t_info*)cmd, envl);
+        result = builtin_export(cmd->args, envl);
     else if (cmd->builtin_id == 6)  // unset
-        result = ft_unset((t_info*)cmd, envl);
+        result = builtin_unset(cmd->args, envl);
     else if (cmd->builtin_id == 7)  // env
-        result = ft_env((t_info*)cmd, envl);
+        result = builtin_env(*envl);
     else if (cmd->builtin_id == 8)  // exit
-        result = ft_exit((t_info*)cmd, envl);
+        result = builtin_exit(cmd->args);
     
+    printf("DEBUG: run_builtin terminé avec result=%d\n", result);
     return (result);
 }
 
 /* ------------ redirections --------------- */
-static int apply_redirs(t_redir *r)
+int apply_redirs(t_redir *r)
 {
     int fd;
     while (r)
@@ -349,7 +349,7 @@ static int apply_redirs(t_redir *r)
 }
 
 /* ------------ execution helpers ------------- */
-static int launch_external(char **args, t_list *envl)
+int launch_external(char **args, t_list *envl)
 {
     // Si c'est un chemin absolu ou relatif
     if (args[0][0] == '/' || (args[0][0] == '.' && args[0][1] == '/'))
@@ -405,7 +405,7 @@ static int launch_external(char **args, t_list *envl)
     return (127);
 }
 
-static int exec_simple(t_cmd *cmd, t_list **envl)
+int exec_simple(t_cmd *cmd, t_list **envl)
 {
     printf("DEBUG: exec_simple appelé avec cmd=%p\n", cmd);
     if (cmd && cmd->args) {
@@ -440,7 +440,7 @@ static int exec_simple(t_cmd *cmd, t_list **envl)
     return (128 + WTERMSIG(status));
 }
 
-static int execute_pipeline(t_cmd *head, t_list **envl)
+int execute_pipeline(t_cmd *head, t_list **envl)
 {
     int in_fd = STDIN_FILENO;
     int last_status = 0;
@@ -526,4 +526,85 @@ static int execute_pipeline(t_cmd *head, t_list **envl)
     }
         
     return (last_status);
+}
+
+static int builtin_unset(char **args, t_list **envl)
+{
+    int i;
+    int status;
+
+    i = 1;
+    status = 0;
+    while (args[i])
+    {
+        // Vérifier si le nom de variable est valide
+        if (authorized_char(args[i]))
+        {
+            // Parcourir la liste des variables d'environnement
+            t_list *prev = NULL;
+            t_list *curr = *envl;
+            
+            while (curr)
+            {
+                t_env *env_var = (t_env *)curr->content;
+                
+                // Ne pas supprimer les variables spéciales comme ?begin
+                if (ft_strcmp(env_var->var, args[i]) == 0 && 
+                    ft_strcmp(env_var->var, "?begin") != 0)
+                {
+                    // Retirer le nœud de la liste
+                    if (prev)
+                        prev->next = curr->next;
+                    else
+                        *envl = curr->next;
+                    
+                    // Libérer la mémoire
+                    free_entry(curr->content);
+                    free(curr);
+                    break;
+                }
+                
+                prev = curr;
+                curr = curr->next;
+            }
+        }
+        else
+        {
+            // Afficher un message d'erreur pour les identifiants invalides
+            ft_putstr_fd("minishell: unset: `", STDERR_FILENO);
+            ft_putstr_fd(args[i], STDERR_FILENO);
+            ft_putstr_fd("': not a valid identifier\n", STDERR_FILENO);
+            status = 1;
+        }
+        i++;
+    }
+    
+    return (status);
+}
+
+int execute_cmds(t_cmd *cmds, t_list **envl, int *last_status)
+{
+    printf("DEBUG: execute_cmds appelé avec cmds=%p\n", cmds);
+    
+    if (!cmds)
+        return (0);
+    
+    // Afficher le premier argument pour le débogage
+    if (cmds->args && cmds->args[0]) {
+        printf("DEBUG: Premier argument: %s\n", cmds->args[0]);
+        if (cmds->args[1])
+            printf("DEBUG: Deuxième argument: %s\n", cmds->args[1]);
+    }
+    
+    // Vérifier si c'est une commande simple ou un pipeline
+    if (!cmds->next) {
+        // Commande simple, sans pipeline
+        *last_status = exec_simple(cmds, envl);
+    } else {
+        // Pipeline de commandes
+        *last_status = execute_pipeline(cmds, envl);
+    }
+    
+    printf("DEBUG: execute_cmds terminé avec status=%d\n", *last_status);
+    return (*last_status);
 }

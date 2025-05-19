@@ -65,7 +65,7 @@ void		handler(int signo)
  * @param line The command line to parse and execute
  */
 
-static int array_len(char **arr)
+int array_len(char **arr)
 {
     int i = 0;
     if (!arr)
@@ -75,7 +75,7 @@ static int array_len(char **arr)
     return i;
 }
 
-static void	parse_and_exec(t_list **envl, char *line)
+void	parse_and_exec(t_list **envl, char *line)
 {
     int status = 0;
     t_cmd *cmds = parse_command_new(line, *envl, &status);
