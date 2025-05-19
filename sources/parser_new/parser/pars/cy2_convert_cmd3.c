@@ -75,21 +75,29 @@ int	append_cmd(t_cmd **current_cmd, int n_delimiter, t_input **head_input)
 	return (0);
 }
 
-int	cy2_convert_cmd2(t_cmdconvert *c)
+int cy2_convert_cmd2(t_cmdconvert *c)
 {
-	if (c->nature_delimiter != 1)
-		return (1);
-	c->skip_nb = cy2_fill_redir(&c->current_cmd,
-			&c->current_input, &c->nature_delimiter);
-	if (c->skip_nb == 0)
-	{
-		cy0_free_cmd_list(c->head_cmd);
-		return (0);
-	}
-	while (c->skip_nb > 0)
-	{
-		c->head_input = c->head_input->next;
-		c->skip_nb = c->skip_nb - 1;
-	}
-	return (1);
+    if (c->nature_delimiter != 1)
+        return (1);
+        
+    // Stocker le pointeur original vers la commande avant d'ajouter les redirections
+    t_cmd *original_cmd = c->current_cmd;
+    
+    c->skip_nb = cy2_fill_redir(&c->current_cmd,
+            &c->current_input, &c->nature_delimiter);
+    if (c->skip_nb == 0)
+    {
+        cy0_free_cmd_list(c->head_cmd);
+        return (0);
+    }
+    
+    // Rétablir le pointeur original pour que les redirections s'accumulent
+    c->current_cmd = original_cmd;
+    
+    while (c->skip_nb > 0)
+    {
+        c->head_input = c->head_input->next;
+        c->skip_nb = c->skip_nb - 1;
+    }
+    return (1);
 }

@@ -28,7 +28,7 @@
  * @return char** A newly allocated array of environment strings, or NULL on error
  *                The caller is responsible for freeing this memory
  */
-
+/*
 static int	size_of_list(t_list *list, int exported)
 {
 	int	i;
@@ -43,31 +43,62 @@ static int	size_of_list(t_list *list, int exported)
 	}
 	return (i);
 }
+*/
 
-char		**create_env_tab(t_list *envl, int exported)
+char **create_env_tab(t_list *envl, int exported)
 {
-	int		size;
-	int		i;
-	char	**env;
-	char	*tmp;
-
-	size = size_of_list(envl, exported);
-	env = malloc((size + 1) * sizeof(char *));
-	if (!env)
-		return (NULL);
-	i = 0;
-	envl = envl->next;
-	while (i < size)
-	{
-		if (((t_env *)envl->content)->exported >= exported)
-		{
-			tmp = ft_strjoin(((t_env *)envl->content)->var, "=");
-			env[i] = ft_strjoin(tmp, ((t_env *)envl->content)->value);
-			free(tmp);
-			i++;
-		}
-		envl = envl->next;
-	}
-	env[i] = NULL;
-	return (env);
+    int size = 0;
+    t_list *tmp = envl;
+    
+    // Compter les variables à inclure
+    while (tmp)
+    {
+        t_env *env = (t_env *)tmp->content;
+        if (env->exported >= exported)
+            size++;
+        tmp = tmp->next;
+    }
+    
+    // Allouer le tableau
+    char **env_tab = malloc(sizeof(char *) * (size + 1));
+    if (!env_tab)
+        return NULL;
+    
+    // Remplir le tableau
+    int i = 0;
+    tmp = envl;
+    while (tmp)
+    {
+        t_env *env = (t_env *)tmp->content;
+        if (env->exported >= exported)
+        {
+            char *name = env->var;
+            char *value = env->value ? env->value : "";
+            
+            // Calculer la taille nécessaire
+            int len = ft_strlen(name) + ft_strlen(value) + 2; // +2 pour '=' et '\0'
+            
+            // Allouer la chaîne
+            env_tab[i] = malloc(len);
+            if (!env_tab[i])
+            {
+                // Nettoyer en cas d'erreur
+                while (--i >= 0)
+                    free(env_tab[i]);
+                free(env_tab);
+                return NULL;
+            }
+            
+            // Construire la chaîne "NAME=VALUE"
+            ft_strlcpy(env_tab[i], name, len);
+            ft_strlcat(env_tab[i], "=", len);
+            ft_strlcat(env_tab[i], value, len);
+            
+            i++;
+        }
+        tmp = tmp->next;
+    }
+    
+    env_tab[i] = NULL;
+    return env_tab;
 }

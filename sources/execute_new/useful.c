@@ -93,3 +93,4 @@ int		is_path(char *word)
 	}
 	return (0);
 }
+

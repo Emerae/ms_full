@@ -1,0 +1,6 @@
+DEBUG: builtin_echo appelé
+DEBUG: Début de l'affichage des arguments
+DEBUG: Affichage de l'argument 1: 'First'
+First
+DEBUG: builtin_echo terminé
+DEBUG: run_builtin terminé avec result=0

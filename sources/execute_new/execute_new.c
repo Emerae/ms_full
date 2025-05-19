@@ -66,32 +66,30 @@ int builtin_unset(char **args, t_list **envl)
 /* ------------ helpers builtin simple ------------- */
 int builtin_echo(char **argv)
 {
-    printf("DEBUG: builtin_echo appelé\n");
     int i = 1;
     int newline = 1;
     
+    // Vérifier si l'option -n est présente
     if (argv[1] && ft_strcmp(argv[1], "-n") == 0)
     {
-        printf("DEBUG: Option -n détectée\n");
         newline = 0;
         i = 2;
     }
     
-    printf("DEBUG: Début de l'affichage des arguments\n");
+    // Afficher tous les arguments
     while (argv[i])
     {
-        printf("DEBUG: Affichage de l'argument %d: '%s'\n", i, argv[i]);
-        ft_putstr_fd(argv[i], STDOUT_FILENO);
+        write(STDOUT_FILENO, argv[i], ft_strlen(argv[i]));
         if (argv[i + 1])
-            ft_putchar_fd(' ', STDOUT_FILENO);
+            write(STDOUT_FILENO, " ", 1);
         i++;
     }
     
+    // Ajouter une nouvelle ligne si nécessaire
     if (newline)
-        ft_putchar_fd('\n', STDOUT_FILENO);
+        write(STDOUT_FILENO, "\n", 1);
     
-    printf("DEBUG: builtin_echo terminé\n");
-    return (0);
+    return 0;
 }
 
 int builtin_pwd(void)
@@ -339,11 +337,37 @@ int builtin_export(char **argv, t_list **envl)
 int builtin_exit(char **argv)
 {
     int code = 0;
+    
+    // Si un code de sortie est fourni, le convertir en entier
     if (argv[1])
+    {
+        // Vérifier si le code est un nombre valide
+        int i = 0;
+        while (argv[1][i])
+        {
+            if (!ft_isdigit(argv[1][i]) && !(i == 0 && argv[1][i] == '-'))
+            {
+                ft_putstr_fd("minishell: exit: ", STDERR_FILENO);
+                ft_putstr_fd(argv[1], STDERR_FILENO);
+                ft_putstr_fd(": numeric argument required\n", STDERR_FILENO);
+                return 2;
+            }
+            i++;
+        }
+        
         code = ft_atoi(argv[1]);
-    exit(code);
+    }
+    
+    // Si nous sommes dans un pipeline, juste retourner le code
+    // et ne pas quitter le processus principal
+    if (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO))
+    {
+        ft_putstr_fd("exit\n", STDERR_FILENO);
+        exit(code);
+    }
+    
+    return code;
 }
-
 static int run_builtin(t_cmd *cmd, t_list **envl)
 {
     if (!cmd || !cmd->args || !cmd->args[0])
@@ -353,7 +377,7 @@ static int run_builtin(t_cmd *cmd, t_list **envl)
     
     // Utiliser directement le builtin_id déterminé par le parser
     if (cmd->builtin_id == 1 || cmd->builtin_id == 2)  // echo avec ou sans option -n
-        result = builtin_echo(cmd->args);  // Passer cmd->args au lieu de cmd
+        result = builtin_echo(cmd->args);
     else if (cmd->builtin_id == 3)  // cd
         result = builtin_cd(cmd->args, envl);
     else if (cmd->builtin_id == 4)  // pwd
@@ -367,7 +391,6 @@ static int run_builtin(t_cmd *cmd, t_list **envl)
     else if (cmd->builtin_id == 8)  // exit
         result = builtin_exit(cmd->args);
     
-    printf("DEBUG: run_builtin terminé avec result=%d\n", result);
     return (result);
 }
 
@@ -375,57 +398,187 @@ static int run_builtin(t_cmd *cmd, t_list **envl)
 int apply_redirs(t_redir *r)
 {
     int fd;
+    t_redir *current;
     
-    while (r)
+    // Première étape: créer/tronquer tous les fichiers de sortie
+    current = r;
+    while (current)
     {
-        if (r->type == 0)  // Input redirection 
+        // Pour les redirections de sortie (> ou >>)
+        if (current->type == 1)
         {
-            fd = open(r->file, O_RDONLY);
+            printf("DEBUG-EXEC: Creating/truncating file '%s'\n", current->file);
+            fd = open(current->file, O_CREAT|O_WRONLY|O_TRUNC, 0644);
             if (fd == -1)
             {
-                perror(r->file);
+                perror(current->file);
                 return (1);
             }
-            
-            // Remplacer stdin par le fichier ouvert
-            dup2(fd, STDIN_FILENO);
             close(fd);
         }
-        else if (r->type == 1)  // Output redirection >
+        else if (current->type == 2)
         {
-            // Créer ou tronquer le fichier
-            fd = open(r->file, O_CREAT|O_WRONLY|O_TRUNC, 0644);
+            printf("DEBUG-EXEC: Opening file for append '%s'\n", current->file);
+            fd = open(current->file, O_CREAT|O_WRONLY|O_APPEND, 0644);
             if (fd == -1)
             {
-                perror(r->file);
+                perror(current->file);
                 return (1);
             }
-            
-            // Remplacer stdout par le fichier ouvert
-            dup2(fd, STDOUT_FILENO);
             close(fd);
         }
-        else if (r->type == 2)  // Append redirection >>
-        {
-            // Créer ou ouvrir le fichier en mode append
-            fd = open(r->file, O_CREAT|O_WRONLY|O_APPEND, 0644);
-            if (fd == -1)
-            {
-                perror(r->file);
-                return (1);
-            }
+        current = current->next;
+    }
+    
+    // Deuxième étape: appliquer seulement la dernière redirection de chaque type
+    t_redir *last_input = NULL;
+    t_redir *last_output = NULL;
+    t_redir *last_heredoc = NULL;
+    
+    current = r;
+    while (current)
+    {
+        if (current->type == 0) // Redirection d'entrée (<)
+            last_input = current;
+        else if (current->type == 1 || current->type == 2) // Redirection de sortie (> ou >>)
+            last_output = current;
+        else if (current->type == 3) // Heredoc (<<)
+            last_heredoc = current;
+        current = current->next;
+    }
+    
+    // Appliquer la dernière redirection de sortie
+    if (last_output)
+    {
+        printf("DEBUG-EXEC: Applying last output redirection to '%s'\n", last_output->file);
+        int flags = O_CREAT|O_WRONLY;
+        if (last_output->type == 1)
+            flags |= O_TRUNC;
+        else
+            flags |= O_APPEND;
             
-            // Remplacer stdout par le fichier ouvert
-            dup2(fd, STDOUT_FILENO);
-            close(fd);
-        }
-        else if (r->type == 3)  // Heredoc 
+        fd = open(last_output->file, flags, 0644);
+        if (fd == -1)
         {
-            ft_printf_fd(2, "minishell: heredoc not supported\n");
+            perror(last_output->file);
             return (1);
         }
         
-        r = r->next;
+        if (dup2(fd, STDOUT_FILENO) == -1)
+        {
+            close(fd);
+            return (perror("dup2"), 1);
+        }
+        close(fd);
+    }
+    
+    // Appliquer le heredoc si présent (priorité sur la redirection d'entrée classique)
+    if (last_heredoc)
+    {
+        printf("DEBUG-EXEC: Processing heredoc with delimiter '%s'\n", last_heredoc->file);
+        
+        int pipefd[2];
+        if (pipe(pipefd) == -1)
+        {
+            perror("pipe");
+            return (1);
+        }
+        
+        pid_t pid = fork();
+        if (pid == -1)
+        {
+            perror("fork");
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return (1);
+        }
+        
+        if (pid == 0)
+        {
+            // Processus enfant: lit l'entrée utilisateur
+            close(pipefd[0]);  // Ferme le côté lecture
+            
+            char buffer[4096];
+            size_t len;
+            
+            // Configurer la sortie pour que l'utilisateur puisse voir le prompt du heredoc
+            int stdout_copy = dup(STDOUT_FILENO);
+            
+            while (1)
+            {
+                // Afficher le prompt sur la sortie standard originale
+                ft_putstr_fd("> ", stdout_copy);
+                
+                // Lire une ligne de l'entrée standard
+                int i = 0;
+                while (i < 4095)
+                {
+                    if (read(STDIN_FILENO, &buffer[i], 1) <= 0)
+                        exit(1);
+                    
+                    // Afficher le caractère lu sur la sortie standard originale
+                    write(stdout_copy, &buffer[i], 1);
+                    
+                    if (buffer[i] == '\n')
+                    {
+                        buffer[i] = '\0';
+                        break;
+                    }
+                    i++;
+                }
+                buffer[i] = '\0';
+                
+                // Vérifier si c'est le délimiteur
+                if (ft_strcmp(buffer, last_heredoc->file) == 0)
+                    break;
+                
+                // Écrire la ligne dans le pipe (avec un retour à la ligne)
+                len = ft_strlen(buffer);
+                write(pipefd[1], buffer, len);
+                write(pipefd[1], "\n", 1);
+            }
+            
+            close(pipefd[1]);
+            close(stdout_copy);
+            exit(0);
+        }
+        else
+        {
+            // Processus parent
+            close(pipefd[1]);  // Ferme le côté écriture
+            
+            // Attendre la fin du processus enfant
+            int status;
+            waitpid(pid, &status, 0);
+            
+            // Rediriger l'entrée standard vers le pipe
+            if (dup2(pipefd[0], STDIN_FILENO) == -1)
+            {
+                perror("dup2");
+                close(pipefd[0]);
+                return (1);
+            }
+            
+            close(pipefd[0]);
+        }
+    }
+    // Appliquer la dernière redirection d'entrée (seulement si pas de heredoc)
+    else if (last_input)
+    {
+        printf("DEBUG-EXEC: Applying last input redirection from '%s'\n", last_input->file);
+        fd = open(last_input->file, O_RDONLY);
+        if (fd == -1)
+        {
+            perror(last_input->file);
+            return (1);
+        }
+        
+        if (dup2(fd, STDIN_FILENO) == -1)
+        {
+            close(fd);
+            return (perror("dup2"), 1);
+        }
+        close(fd);
     }
     
     return (0);
@@ -434,11 +587,19 @@ int apply_redirs(t_redir *r)
 /* ------------ execution helpers ------------- */
 int launch_external(char **args, t_list *envl)
 {
+    // Créer un tableau d'environnement à partir de la liste chaînée
+    char **env_array = create_env_tab(envl, 2); // 2 pour n'inclure que les variables exportées
+    if (!env_array) {
+        ft_putstr_fd("minishell: environnement non disponible\n", STDERR_FILENO);
+        return (127);
+    }
+
     // Si c'est un chemin absolu ou relatif
     if (args[0][0] == '/' || (args[0][0] == '.' && args[0][1] == '/'))
     {
-        execve(args[0], args, NULL);
+        execve(args[0], args, env_array);
         perror(args[0]);
+        free_tab(env_array);
         return (127);
     }
     
@@ -446,33 +607,29 @@ int launch_external(char **args, t_list *envl)
     char *path = get_env_value(envl, "PATH");
     if (path)
     {
-        // Faire une copie de PATH pour pouvoir la parcourir
         char *path_copy = ft_strdup(path);
-        if (!path_copy)
+        if (!path_copy) {
+            free_tab(env_array);
             return (127);
+        }
             
         char *current = path_copy;
         char *next_colon;
         char full_path[4096];
         
-        // Parcourir chaque répertoire du PATH
         while (current && *current)
         {
-            // Trouver le prochain séparateur ":"
             next_colon = ft_strchr(current, ':');
             if (next_colon)
                 *next_colon = '\0';
                 
-            // Construire le chemin complet
             ft_memset(full_path, 0, sizeof(full_path));
             ft_strlcpy(full_path, current, sizeof(full_path));
             ft_strlcat(full_path, "/", sizeof(full_path));
             ft_strlcat(full_path, args[0], sizeof(full_path));
             
-            // Tenter d'exécuter
-            execve(full_path, args, NULL);
+            execve(full_path, args, env_array);
             
-            // Si on arrive ici, l'exécution a échoué
             if (!next_colon)
                 break;
                 
@@ -480,9 +637,9 @@ int launch_external(char **args, t_list *envl)
         }
         
         free(path_copy);
+        free_tab(env_array);
     }
     
-    // Si on arrive ici, la commande n'a pas été trouvée
     ft_putstr_fd(args[0], STDERR_FILENO);
     ft_putstr_fd(": command not found\n", STDERR_FILENO);
     return (127);
@@ -496,37 +653,44 @@ int exec_simple(t_cmd *cmd, t_list **envl)
         if (cmd->args[1])
             printf("DEBUG: cmd->args[1]=%s\n", cmd->args[1]);
     }
+    
     if (!cmd->args || !cmd->args[0])
         return (0);
+        
     /* parent builtins */
     if (!cmd->next && (ft_strcmp(cmd->args[0], "cd") == 0 ||
                        ft_strcmp(cmd->args[0], "exit") == 0 ||
                        ft_strcmp(cmd->args[0], "export") == 0 ||
                        ft_strcmp(cmd->args[0], "unset") == 0))
+    {
         return (run_builtin(cmd, envl));
+    }
 
     pid_t pid = fork();
     if (pid == -1)
         return (perror("fork"), 1);
-    // Ajouter au début de exec_simple ou juste avant apply_redirs
-    if (cmd->redirs) {
-        printf("DEBUG: Redirections pour la commande %s:\n", cmd->args[0]);
-        t_redir *r_debug = cmd->redirs;
-        int redir_count = 0;
-        while (r_debug) {
-            printf("DEBUG: Redirection %d: type=%d, file=%s\n", 
-                redir_count++, r_debug->type, r_debug->file);
-            r_debug = r_debug->next;
-        }
-    }
+    
     if (pid == 0)
     {
+        if (cmd->redirs) {
+            printf("DEBUG: Redirections pour la commande %s:\n", 
+                cmd->args[0]);
+            t_redir *r_debug = cmd->redirs;
+            int redir_count = 0;
+            while (r_debug) {
+                printf("DEBUG: Redirection %d: type=%d, file=%s\n", 
+                    redir_count++, r_debug->type, r_debug->file);
+                r_debug = r_debug->next;
+            }
+        }
+        
         if (apply_redirs(cmd->redirs))
             exit(1);
         if (run_builtin(cmd, envl) != -1)
             exit(0);
         exit(launch_external(cmd->args, *envl));
     }
+    
     int status;
     waitpid(pid, &status, 0);
     if (WIFEXITED(status))
@@ -536,90 +700,158 @@ int exec_simple(t_cmd *cmd, t_list **envl)
 
 int execute_pipeline(t_cmd *head, t_list **envl)
 {
-    int in_fd = STDIN_FILENO;
+    int pipes[2][2];  // Double buffer pour gérer les pipes entre processus
+    int current_pipe = 0;
     int last_status = 0;
-    int pipefd[2];
-
-    t_cmd *c = head;
-    while (c)
-    {
-        if (c->next)
-        {
-            if (pipe(pipefd) == -1)
-            {
-                perror("pipe");
-                return (1);
-            }
-        }
-            
-        pid_t pid = fork();
-        if (pid == -1)
-        {
-            perror("fork");
-            return (1);
-        }
-            
-        if (pid == 0)
-        {
-            // Gestion des descripteurs
-            if (in_fd != STDIN_FILENO)
-            {
-                dup2(in_fd, STDIN_FILENO);
-                close(in_fd);
-            }
-            if (c->next)
-            {
-                dup2(pipefd[1], STDOUT_FILENO);
-                close(pipefd[0]);
-                close(pipefd[1]);
-            }
-            
-            // Appliquer les redirections
-            if (apply_redirs(c->redirs))
-                exit(1);
-                
-            // Exécuter la commande
-            if (c->builtin_id != -1)
-            {
-                // C'est un builtin
-                int result = run_builtin(c, envl);
-                exit(result);
-            }
-            else if (c->args && c->args[0])
-            {
-                // Commande externe
-                exit(launch_external(c->args, *envl));
-            }
-            else
-            {
-                exit(0);  // Aucune commande
-            }
-        }
-        
-        // Parent
-        if (in_fd != STDIN_FILENO)
-            close(in_fd);
-        if (c->next)
-        {
-            close(pipefd[1]);
-            in_fd = pipefd[0];
-        }
-        
-        c = c->next;
+    pid_t *pids;
+    int cmd_count = 0;
+    
+    // Compter le nombre de commandes pour allouer le tableau de PIDs
+    t_cmd *count = head;
+    while (count) {
+        cmd_count++;
+        count = count->next;
     }
     
-    // Attendre tous les processus enfants
-    int status;
-    pid_t pid;
-    while ((pid = wait(&status)) > 0)
+    pids = malloc(sizeof(pid_t) * cmd_count);
+    if (!pids)
+        return 1;
+    
+    // Exécuter les commandes
+    t_cmd *cmd = head;
+    int cmd_index = 0;
+    
+    while (cmd)
     {
-        if (WIFEXITED(status))
-            last_status = WEXITSTATUS(status);
-        else if (WIFSIGNALED(status))
-            last_status = 128 + WTERMSIG(status);
-    }
+        // Créer un nouveau pipe si ce n'est pas la dernière commande
+        if (cmd->next)
+        {
+            if (pipe(pipes[current_pipe]) == -1)
+            {
+                perror("pipe");
+                free(pids);
+                return 1;
+            }
+        }
         
-    return (last_status);
+        // Fork pour exécuter la commande
+        pids[cmd_index] = fork();
+        if (pids[cmd_index] == -1)
+        {
+            perror("fork");
+            free(pids);
+            return 1;
+        }
+        
+        if (pids[cmd_index] == 0)  // Processus enfant
+        {
+            // Si ce n'est pas la première commande, rediriger l'entrée depuis le pipe précédent
+            if (cmd_index > 0)
+            {
+                dup2(pipes[1 - current_pipe][0], STDIN_FILENO);
+                close(pipes[1 - current_pipe][0]);
+                close(pipes[1 - current_pipe][1]);
+            }
+            
+            // Si ce n'est pas la dernière commande, rediriger la sortie vers le pipe actuel
+            if (cmd->next)
+            {
+                close(pipes[current_pipe][0]);
+                dup2(pipes[current_pipe][1], STDOUT_FILENO);
+                close(pipes[current_pipe][1]);
+            }
+            
+            // Fermer tous les descripteurs de fichiers non utilisés
+            for (int i = 3; i < 256; i++)
+                if (i != STDIN_FILENO && i != STDOUT_FILENO && i != STDERR_FILENO)
+                    close(i);
+            
+            // Appliquer les redirections spécifiées dans la commande
+            if (apply_redirs(cmd->redirs))
+                exit(1);
+            
+            // Exécuter la commande
+            int status;
+            if (cmd->builtin_id != -1) // Commande built-in
+            {
+                status = run_builtin(cmd, envl);
+                exit(status);
+            }
+            else // Commande externe
+            {
+                // Convertir envl en tableau d'environnement
+                char **env_array = create_env_tab(*envl, 2);
+                if (!env_array)
+                    exit(127);
+                
+                // Si c'est un chemin absolu
+                if (cmd->args[0][0] == '/' || (cmd->args[0][0] == '.' && cmd->args[0][1] == '/'))
+                {
+                    execve(cmd->args[0], cmd->args, env_array);
+                    perror(cmd->args[0]);
+                }
+                else // Chercher dans le PATH
+                {
+                    char *path = get_env_value(*envl, "PATH");
+                    if (path)
+                    {
+                        char *path_copy = ft_strdup(path);
+                        if (path_copy)
+                        {
+                            char *token = strtok(path_copy, ":");
+                            while (token)
+                            {
+                                char full_path[4096];
+                                ft_strlcpy(full_path, token, sizeof(full_path));
+                                ft_strlcat(full_path, "/", sizeof(full_path));
+                                ft_strlcat(full_path, cmd->args[0], sizeof(full_path));
+                                
+                                execve(full_path, cmd->args, env_array);
+                                token = strtok(NULL, ":");
+                            }
+                            free(path_copy);
+                        }
+                    }
+                }
+                free_tab(env_array);
+                ft_putstr_fd(cmd->args[0], STDERR_FILENO);
+                ft_putstr_fd(": command not found\n", STDERR_FILENO);
+                exit(127);
+            }
+        }
+        
+        // Processus parent
+        if (cmd_index > 0)
+        {
+            // Fermer le pipe précédent qui a été dupliqué dans l'enfant
+            close(pipes[1 - current_pipe][0]);
+            close(pipes[1 - current_pipe][1]);
+        }
+        
+        // Passer à la commande suivante
+        cmd = cmd->next;
+        cmd_index++;
+        current_pipe = 1 - current_pipe;  // Alterner entre les deux pipes
+    }
+    
+    // Attendre la fin de tous les processus enfants
+    for (int i = 0; i < cmd_count; i++)
+    {
+        int status;
+        waitpid(pids[i], &status, 0);
+        
+        // Sauvegarder le statut du dernier processus
+        if (i == cmd_count - 1)
+        {
+            if (WIFEXITED(status))
+                last_status = WEXITSTATUS(status);
+            else if (WIFSIGNALED(status))
+                last_status = 128 + WTERMSIG(status);
+        }
+    }
+    
+    free(pids);
+    return last_status;
 }
 
 
@@ -637,6 +869,9 @@ int execute_cmds(t_cmd *cmds, t_list **envl, int *last_status)
         if (cmds->args[1])
             printf("DEBUG: Deuxième argument: %s\n", cmds->args[1]);
     }
+    
+    // Nous ne clonons pas la commande ici car ce sera fait dans les fonctions 
+    // exec_simple ou execute_pipeline
     
     // Vérifier si c'est une commande simple ou un pipeline
     if (!cmds->next) {

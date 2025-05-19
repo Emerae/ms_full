@@ -232,4 +232,6 @@ void	print_input_list(t_input *head_input);
 // Fonctions de redirection
 int	redir_type_from_str(const char *s);
 
+
+
 #endif
