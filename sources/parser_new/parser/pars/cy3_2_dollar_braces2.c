@@ -17,7 +17,8 @@ void	cy3_handle_dollar_brace2(t_dollar_braces *s,
 void	cy3_handle_dollar_brace3(t_dollar_braces *s, char **env)
 {
 	s->e = 0;
-	while (env[s->e + 1])
+	// CORRECTION: vérifie env[s->e] au lieu de env[s->e + 1]
+	while (env[s->e])
 	{
 		s->equal = cy_strchr(env[s->e], '=');
 		if (!s->equal)
@@ -30,7 +31,8 @@ void	cy3_handle_dollar_brace3(t_dollar_braces *s, char **env)
 			break ;
 		s->e = s->e + 1;
 	}
-	if (env[s->e + 1])
+	// CORRECTION: vérifie env[s->e] au lieu de env[s->e + 1]
+	if (env[s->e])
 		s->value = cy_strchr(env[s->e], '=') + 1;
 }
 

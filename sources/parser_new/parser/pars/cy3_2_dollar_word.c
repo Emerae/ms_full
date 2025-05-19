@@ -55,7 +55,8 @@ int	cy3_handle_dollar_word_3(t_input *current, int i, int j)
 
 int	cy3_handle_dollar_word_1(t_input *current, char **env, t_dollar_word *s)
 {
-	if (env[s->e + 1])
+	// CORRECTION: vérifie env[s->e] au lieu de env[s->e + 1]
+	if (env[s->e])
 	{
 		s->value = cy_strchr(env[s->e], '=') + 1;
 		s->p = 0;

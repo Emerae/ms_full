@@ -8,6 +8,61 @@
 #include "parser_new.h"
 #include "minishell.h"
 
+
+int builtin_unset(char **args, t_list **envl)
+{
+    int i;
+    int status;
+
+    i = 1;
+    status = 0;
+    while (args[i])
+    {
+        // Vérifier si le nom de variable est valide
+        if (authorized_char(args[i]))
+        {
+            // Parcourir la liste des variables d'environnement
+            t_list *prev = NULL;
+            t_list *curr = *envl;
+            
+            while (curr)
+            {
+                t_env *env_var = (t_env *)curr->content;
+                
+                // Ne pas supprimer les variables spéciales comme ?begin
+                if (ft_strcmp(env_var->var, args[i]) == 0 && 
+                    ft_strcmp(env_var->var, "?begin") != 0)
+                {
+                    // Retirer le nœud de la liste
+                    if (prev)
+                        prev->next = curr->next;
+                    else
+                        *envl = curr->next;
+                    
+                    // Libérer la mémoire
+                    free_entry(curr->content);
+                    free(curr);
+                    break;
+                }
+                
+                prev = curr;
+                curr = curr->next;
+            }
+        }
+        else
+        {
+            // Afficher un message d'erreur pour les identifiants invalides
+            ft_putstr_fd("minishell: unset: `", STDERR_FILENO);
+            ft_putstr_fd(args[i], STDERR_FILENO);
+            ft_putstr_fd("': not a valid identifier\n", STDERR_FILENO);
+            status = 1;
+        }
+        i++;
+    }
+    
+    return (status);
+}
+
 /* ------------ helpers builtin simple ------------- */
 int builtin_echo(char **argv)
 {
@@ -528,59 +583,7 @@ int execute_pipeline(t_cmd *head, t_list **envl)
     return (last_status);
 }
 
-static int builtin_unset(char **args, t_list **envl)
-{
-    int i;
-    int status;
 
-    i = 1;
-    status = 0;
-    while (args[i])
-    {
-        // Vérifier si le nom de variable est valide
-        if (authorized_char(args[i]))
-        {
-            // Parcourir la liste des variables d'environnement
-            t_list *prev = NULL;
-            t_list *curr = *envl;
-            
-            while (curr)
-            {
-                t_env *env_var = (t_env *)curr->content;
-                
-                // Ne pas supprimer les variables spéciales comme ?begin
-                if (ft_strcmp(env_var->var, args[i]) == 0 && 
-                    ft_strcmp(env_var->var, "?begin") != 0)
-                {
-                    // Retirer le nœud de la liste
-                    if (prev)
-                        prev->next = curr->next;
-                    else
-                        *envl = curr->next;
-                    
-                    // Libérer la mémoire
-                    free_entry(curr->content);
-                    free(curr);
-                    break;
-                }
-                
-                prev = curr;
-                curr = curr->next;
-            }
-        }
-        else
-        {
-            // Afficher un message d'erreur pour les identifiants invalides
-            ft_putstr_fd("minishell: unset: `", STDERR_FILENO);
-            ft_putstr_fd(args[i], STDERR_FILENO);
-            ft_putstr_fd("': not a valid identifier\n", STDERR_FILENO);
-            status = 1;
-        }
-        i++;
-    }
-    
-    return (status);
-}
 
 int execute_cmds(t_cmd *cmds, t_list **envl, int *last_status)
 {

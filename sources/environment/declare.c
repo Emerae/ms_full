@@ -1,4 +1,3 @@
-
 #include "minishell.h"
 /**
  * @file declare.c
@@ -20,7 +19,7 @@
  *                 2: fully exported
  * @return SUCCESS on successful addition, ERROR on memory allocation failure
  */
-static int	add_new_var(char *var, char *value, t_list **envl, int exported);
+//static int	add_new_var(char *var, char *value, t_list **envl, int exported);
 
 /**
  * @brief Adds or updates an environment variable
@@ -61,8 +60,8 @@ static int	export_one(char *var, t_list **envl, int exported);
  * @return SUCCESS if all variables were exported successfully, ERROR otherwise
  */
 int			export_all(char **vars, t_list **envl, int exported);
-
-static int	add_new_var(char *var, char *value, t_list **envl, int exported)
+/*
+int	add_new_var(char *var, char *value, t_list **envl, int exported)
 {
 	t_list	*new;
 	t_env	*cont;
@@ -88,6 +87,7 @@ static int	add_new_var(char *var, char *value, t_list **envl, int exported)
 	ft_lstadd_back(envl, new);
 	return (SUCCESS);
 }
+*/
 
 int add_env(char *var, char *value, t_list **envl, int exported)
 {

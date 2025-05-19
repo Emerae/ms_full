@@ -18,7 +18,8 @@ void	cy3_handle_dollar_word_findenv(t_dollar_word *s, char **env)
 	char	*equal;
 
 	s->e = 0;
-	while (env[s->e + 1])
+	// CORRECTION: vérifie env[s->e] au lieu de env[s->e + 1]
+	while (env[s->e])
 	{
 		equal = cy_strchr(env[s->e], '=');
 		if (!equal)
