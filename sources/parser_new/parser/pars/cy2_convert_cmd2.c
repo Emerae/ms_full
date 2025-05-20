@@ -161,6 +161,12 @@ t_cmd	*cy2_convert_cmd(t_input *head_input)
 	printf("DEBUG: cy2_convert_cmd initialisé avec nature_delimiter=%d\n", c.nature_delimiter);
 	if (!cy2_convert_cmd1a(&c))
 		return (NULL);
+    printf("DEBUG: Avant cy2_free_first_cmd_node, head_cmd=%p avec redirs=%p\n", 
+       c.head_cmd, c.head_cmd->redirs);
+    if (c.head_cmd->redirs) {
+        printf("DEBUG:   Premier fichier redir='%s', type=%d\n", 
+            c.head_cmd->redirs->file, c.head_cmd->redirs->type);
+    }
 	cy2_free_first_cmd_node(&c.head_cmd);
 	printf("DEBUG: cy2_convert_cmd fin avec head_cmd=%p\n", c.head_cmd);
 	return (c.head_cmd);
