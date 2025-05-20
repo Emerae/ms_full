@@ -85,6 +85,8 @@ void parse_and_exec(t_list **envl, char *line)
     }
     else
     {
+        merge_redirection_commands(cmds);
+        fix_pipeline_structure(cmds);
         execute_cmds(cmds, envl, &status);
         update_return(envl, status);
         t_cmd *tmp = cmds;
