@@ -38,6 +38,9 @@ int cy2_convert_cmd1b(t_cmdconvert *c)
     // Obtenir le nombre de délimiteurs et le type
     c->n_delimiter = find_delim(&c->current_input, &c->nature_delimiter);
     
+    printf("DEBUG: find_delim a trouvé %d arguments (nature=%d)\n", 
+           c->n_delimiter, c->nature_delimiter);
+    
     // Si find_delim renvoie une erreur
     if (c->n_delimiter == -1)
     {
@@ -45,11 +48,22 @@ int cy2_convert_cmd1b(t_cmdconvert *c)
         return (0);
     }
     
-    // Traiter les redirections
+    // IMPORTANT: Créer d'abord la commande avec ses arguments
+    // AVANT de traiter les redirections
+    if (c->n_delimiter > 0)
+    {
+        if (append_cmd(&c->current_cmd, c->n_delimiter, &c->head_input))
+        {
+            cy0_free_cmd_list(c->head_cmd);
+            return (0);
+        }
+        printf("DEBUG: Commande créée avec %d arguments\n", c->n_delimiter);
+    }
+    
+    // Ensuite seulement, traiter les redirections
     if (c->nature_delimiter == 1 && c->current_input && 
         c->current_input->input)
     {
-        // Vérification sécurisée du symbole de redirection
         int is_redir = c->current_input->input[0] == '<' || 
                       c->current_input->input[0] == '>';
                       
@@ -58,10 +72,7 @@ int cy2_convert_cmd1b(t_cmdconvert *c)
             printf("DEBUG: Traitement de redirection pour '%s'\n", 
                    c->current_input->input);
             
-            // Stocker le pointeur actuel pour plus de sécurité
             t_input *redir_node = c->current_input;
-            
-            // Utiliser cy2_fill_redir pour traiter la redirection
             int skip = cy2_fill_redir(&c->current_cmd, &c->current_input, 
                                      &c->nature_delimiter);
                                      
@@ -69,16 +80,12 @@ int cy2_convert_cmd1b(t_cmdconvert *c)
             {
                 printf("DEBUG: Échec du traitement de redirection\n");
                 if (!c->current_input) {
-                    // Réinitialiser pour éviter NULL
                     c->current_input = redir_node;
                 }
                 
-                // Continuer malgré l'échec
                 if (redir_node && redir_node->next)
                     c->current_input = redir_node->next;
             }
-            
-            return (-1);  // Continuer le traitement
         }
     }
     
@@ -87,21 +94,7 @@ int cy2_convert_cmd1b(t_cmdconvert *c)
         c->current_input->input && c->current_input->input[0] == '|')
     {
         printf("DEBUG: Pipe détecté: '%s'\n", c->current_input->input);
-        
-        // Ne pas considérer le pipe comme une commande
         c->current_input = c->current_input->next;
-        
-        return (-1);  // Continuer le traitement
-    }
-    
-    // Traitement normal des commandes
-    if (c->n_delimiter > 0)
-    {
-        if (append_cmd(&c->current_cmd, c->n_delimiter, &c->head_input))
-        {
-            cy0_free_cmd_list(c->head_cmd);
-            return (0);
-        }
     }
     
     return (-1);
@@ -110,130 +103,67 @@ int cy2_convert_cmd1b(t_cmdconvert *c)
 int cy2_convert_cmd1a(t_cmdconvert *c)
 {
     int ret;
-    
-    // Compte les tentatives pour éviter les boucles infinies
-    int attempts = 0;
-    int max_attempts = 50;  // Limite raisonnable
 
-    while (attempts < max_attempts)
+    while (1)
     {
-        attempts = attempts + 1;
-        
         ret = cy2_convert_cmd1b(c);
-        
-        // Si la fonction retourne une erreur, propager l'erreur
         if (ret != -1)
+            return (ret);
+        cy2_fill_builtin_id(&c->current_cmd);
+        if (!cy2_convert_cmd2(c))
+            return (0);
+        if (c->nature_delimiter == 3)
+            break;
+        if (c->nature_delimiter == 2) // Cas du pipe
         {
-            if (ret == 0)
-            {
-                printf("DEBUG: cy2_convert_cmd1b a signalé une erreur\n");
-                return (0);  // Erreur
-            }
-            printf("DEBUG: cy2_convert_cmd1b a terminé normalement\n");
-            return (1);  // Succès
-        }
-        
-        // Traitement du pipe
-        if (c->nature_delimiter == 2)
-        {
-            printf("DEBUG: Traitement du pipe, nature_delimiter = 2\n");
+            // Ignorons explicitement le token pipe
+            c->current_input = c->current_input->next;
             
-            // Créer une nouvelle commande après le pipe
-            if (c->current_cmd->next == NULL)
+            // Créer directement la prochaine commande sans nœud vide
+            c->current_cmd->next = init_cmd();
+            if (!c->current_cmd->next)
             {
-                t_cmd *new_cmd = init_cmd();
-                if (!new_cmd)
-                {
-                    printf("DEBUG: Échec d'allocation de la nouvelle commande après pipe\n");
-                    return (0);
-                }
-                
-                c->current_cmd->next = new_cmd;
-                printf("DEBUG: Nouvelle commande créée après pipe, current_cmd->next = %p\n", 
-                       c->current_cmd->next);
+                cy0_free_cmd_list(c->head_cmd);
+                return (0);
             }
             
-            // Avancer à la commande suivante
-            printf("DEBUG: Avancement à la commande suivante après pipe\n");
+            // Passer à la commande suivante
             c->current_cmd = c->current_cmd->next;
             
-            // Si current_input pointe vers le pipe, avancer au-delà
-            if (c->current_input && c->current_input->input)
-            {
-                if (c->current_input->input[0] == '|')
-                {
-                    printf("DEBUG: Avancer au-delà du pipe: '%s'\n", c->current_input->input);
-                    c->current_input = c->current_input->next;
-                }
-            }
-        }
-        
-        // Si fin de commande, sortir de la boucle
-        if (c->nature_delimiter == 3)
-        {
-            printf("DEBUG: Fin de la commande détectée (nature_delimiter = 3)\n");
-            break;
+            // Afficher un message de débogage
+            printf("DEBUG: Création d'une nouvelle commande après pipe\n");
         }
     }
-    
-    if (attempts >= max_attempts)
-    {
-        printf("DEBUG: Nombre maximal de tentatives atteint, possible boucle infinie\n");
-        return (0);  // Erreur, boucle infinie probable
-    }
-    
-    return (1);  // Succès
+    return (1);
 }
 
-t_cmd *cy2_convert_cmd(t_input *head_input)
+t_cmd	*cy2_convert_cmd(t_input *head_input)
 {
-    t_cmdconvert c;
+	t_cmdconvert	c;
 
-    printf("DEBUG: cy2_convert_cmd début avec head_input=%p\n", head_input);
-    
-    // Initialisation critique: head_cmd doit être créé mais pas ajouté à la liste encore
-    c.head_cmd = init_cmd();  // Crée un noeud vide pour commencer
-    if (!c.head_cmd)
-    {
-        printf("Failed alloc for head_cmd\n");
-        return (NULL);
-    }
-    printf("DEBUG: cy2_convert_cmd initialisé avec head_cmd=%p\n", c.head_cmd);
-    
-    c.current_cmd = c.head_cmd;  // Commencer à cette position
-    printf("DEBUG: cy2_convert_cmd initialisé avec current_cmd=%p\n", c.current_cmd);
-    c.head_input = head_input;
-    printf("DEBUG: cy2_convert_cmd initialisé avec head_input=%p\n", c.head_input);
-    c.current_input = head_input;
-    printf("DEBUG: cy2_convert_cmd initialisé avec current_input=%p\n", c.current_input);
-    c.n_delimiter = 0;
-    printf("DEBUG: cy2_convert_cmd initialisé avec n_delimiter=%d\n", c.n_delimiter);
-    c.nature_delimiter = 0;
-    printf("DEBUG: cy2_convert_cmd initialisé avec nature_delimiter=%d\n", c.nature_delimiter);
-    
-    // *** IMPORTANT: Stocker le pointeur head_cmd original ***
-    t_cmd *original_head = c.head_cmd;
-    
-    if (!cy2_convert_cmd1a(&c))
-    {
-        printf("DEBUG: cy2_convert_cmd1a a échoué\n");
-        return (NULL);
-    }
-    
-    // Si head_cmd est différent de original_head, utilisez cy2_free_first_cmd_node
-    // sinon, conservez le nœud vide initial
-    if (c.head_cmd == original_head)
-    {
-        printf("DEBUG: Le premier nœud est vide, on le supprime\n");
-        cy2_free_first_cmd_node(&c.head_cmd);
-    }
-    else
-    {
-        printf("DEBUG: Structure de commande créée avec succès\n");
-    }
-    
-    printf("DEBUG: cy2_convert_cmd fin avec head_cmd=%p\n", c.head_cmd);
-    return (c.head_cmd);
+	printf("DEBUG: cy2_convert_cmd début avec head_input=%p\n", head_input);
+	c.head_cmd = init_cmd();
+	if (!c.head_cmd)
+	{
+		printf("Failed alloc for head_cmd\n");
+		return (NULL);
+	}
+	printf("DEBUG: cy2_convert_cmd initialisé avec head_cmd=%p\n", c.head_cmd);
+	c.current_cmd = c.head_cmd;
+	printf("DEBUG: cy2_convert_cmd initialisé avec current_cmd=%p\n", c.current_cmd);
+	c.head_input = head_input;
+	printf("DEBUG: cy2_convert_cmd initialisé avec head_input=%p\n", c.head_input);
+	c.current_input = head_input;
+	printf("DEBUG: cy2_convert_cmd initialisé avec current_input=%p\n", c.current_input);
+	c.n_delimiter = 0;
+	printf("DEBUG: cy2_convert_cmd initialisé avec n_delimiter=%d\n", c.n_delimiter);
+	c.nature_delimiter = 0;
+	printf("DEBUG: cy2_convert_cmd initialisé avec nature_delimiter=%d\n", c.nature_delimiter);
+	if (!cy2_convert_cmd1a(&c))
+		return (NULL);
+	cy2_free_first_cmd_node(&c.head_cmd);
+	printf("DEBUG: cy2_convert_cmd fin avec head_cmd=%p\n", c.head_cmd);
+	return (c.head_cmd);
 }
 // nature_delimiter : numero ou NULL ou > ou |;
 // 0 = Problem 1 = Redir , 2 = Pipe , 3 = NULL;

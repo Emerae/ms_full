@@ -116,17 +116,32 @@ int append_cmd(t_cmd **current_cmd, int n_delimiter, t_input **head_input)
         return (1);
     }
     
-    // Filtrer les redirections des arguments
-    filter_cmd_redirections(new_cmd);
+    // MODIFICATION: Ne pas filtrer les redirections ici, ou s'assurer qu'il reste au moins un argument
+    // filter_cmd_redirections(new_cmd);
     
     // Vérifier si la commande a des arguments valides
     if (!new_cmd->args || !new_cmd->args[0])
     {
-        printf("DEBUG: Commande vide ignorée\n");
-        free(new_cmd->args);
-        free(new_cmd);
-        *head_input = input_node;
-        return (0);
+        // MODIFICATION: Au lieu de supprimer, ajouter un argument factice
+        if (!new_cmd->args)
+        {
+            new_cmd->args = malloc(sizeof(char *) * 2);
+            if (!new_cmd->args)
+            {
+                free(new_cmd);
+                return (1);
+            }
+        }
+        
+        new_cmd->args[0] = ft_strdup("_redir_placeholder_");
+        if (!new_cmd->args[0])
+        {
+            free(new_cmd->args);
+            free(new_cmd);
+            return (1);
+        }
+        
+        new_cmd->args[1] = NULL;
     }
     
     // Ajouter la commande à la liste

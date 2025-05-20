@@ -123,6 +123,15 @@ int cy2_fill_redir(t_cmd **current_cmd, t_input **current_input, int *nature)
         return (0);
     }
     
+    if (!(*current_cmd)->args)
+    {
+        (*current_cmd)->args = malloc(sizeof(char *) * 2);
+        if (!(*current_cmd)->args)
+            return (0);
+        (*current_cmd)->args[0] = ft_strdup("_redir_placeholder_");
+        (*current_cmd)->args[1] = NULL;
+    }
+    
     t_input *redir_node = *current_input;
     
     // Vérifier si c'est bien une redirection
