@@ -123,6 +123,7 @@ int cy2_fill_redir(t_cmd **current_cmd, t_input **current_input, int *nature)
         return (0);
     }
     
+    // Assurer que la commande a des arguments si nécessaire
     if (!(*current_cmd)->args)
     {
         (*current_cmd)->args = malloc(sizeof(char *) * 2);
@@ -132,62 +133,65 @@ int cy2_fill_redir(t_cmd **current_cmd, t_input **current_input, int *nature)
         (*current_cmd)->args[1] = NULL;
     }
     
-    t_input *redir_node = *current_input;
+    // Traiter toutes les redirections consécutives
+    t_input *current = *current_input;
+    int redirections_processed = 0;
     
-    // Vérifier si c'est bien une redirection
-    int redir_type = redir_type_from_str(redir_node->input);
-    if (redir_type < 0)
+    // Tant qu'il y a des redirections à traiter
+    while (current)
     {
-        printf("DEBUG-REDIR: '%s' n'est pas une redirection\n", 
-               redir_node->input);
-        return (0);
+        // Vérifier si c'est une redirection
+        int redir_type = redir_type_from_str(current->input);
+        if (redir_type < 0)
+            break;  // Ce n'est pas une redirection, on arrête
+            
+        // Trouver le fichier associé (sauter les espaces)
+        t_input *file_node = current->next;
+        while (file_node && file_node->type == 1)
+            file_node = file_node->next;
+            
+        // Vérifier qu'il y a bien un fichier
+        if (!file_node || !file_node->input)
+            break;
+            
+        // Créer la structure de redirection
+        t_redir *new_redir = malloc(sizeof(t_redir));
+        if (!new_redir)
+            return (0);
+            
+        new_redir->type = redir_type;
+        new_redir->file = cy_true_strdup(file_node->input);
+        new_redir->next = NULL;
+        
+        if (!new_redir->file)
+        {
+            free(new_redir);
+            return (0);
+        }
+        
+        printf("DEBUG-REDIR: Redirection type %d vers '%s' créée\n",
+               redir_type, new_redir->file);
+               
+        // Ajouter à la liste des redirections
+        if (!(*current_cmd)->redirs)
+        {
+            (*current_cmd)->redirs = new_redir;
+        }
+        else
+        {
+            t_redir *last = (*current_cmd)->redirs;
+            while (last->next)
+                last = last->next;
+            last->next = new_redir;
+        }
+        
+        // Passer au token suivant après le fichier
+        current = file_node->next;
+        redirections_processed++;
     }
     
-    // Trouver le fichier associé (sauter les espaces)
-    t_input *file_node = redir_node->next;
-    while (file_node && file_node->type == 1)
-        file_node = file_node->next;
-    
-    // Vérifier que le fichier existe
-    if (!file_node || !file_node->input)
-    {
-        printf("DEBUG-REDIR: Pas de fichier après redirection\n");
-        return (0);
-    }
-    
-    // Créer la structure de redirection
-    t_redir *new_redir = malloc(sizeof(t_redir));
-    if (!new_redir)
-        return (0);
-    
-    new_redir->type = redir_type;
-    new_redir->file = cy_true_strdup(file_node->input);
-    new_redir->next = NULL;
-    
-    if (!new_redir->file)
-    {
-        free(new_redir);
-        return (0);
-    }
-    
-    printf("DEBUG-REDIR: Redirection type %d vers '%s' créée\n",
-           redir_type, new_redir->file);
-    
-    // Ajouter à la liste des redirections
-    if (!(*current_cmd)->redirs)
-    {
-        (*current_cmd)->redirs = new_redir;
-    }
-    else
-    {
-        t_redir *last = (*current_cmd)->redirs;
-        while (last->next)
-            last = last->next;
-        last->next = new_redir;
-    }
-    
-    // Avancer au-delà du fichier
-    *current_input = file_node->next;
+    // Mettre à jour le pointeur current_input
+    *current_input = current;
     
     // Mettre à jour le type de délimiteur
     if (*current_input)
@@ -202,5 +206,5 @@ int cy2_fill_redir(t_cmd **current_cmd, t_input **current_input, int *nature)
         *nature = 3;  // Fin
     }
     
-    return (1);
+    return (redirections_processed);
 }

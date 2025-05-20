@@ -48,8 +48,7 @@ int cy2_convert_cmd1b(t_cmdconvert *c)
         return (0);
     }
     
-    // IMPORTANT: Créer d'abord la commande avec ses arguments
-    // AVANT de traiter les redirections
+    // Créer d'abord la commande avec ses arguments
     if (c->n_delimiter > 0)
     {
         if (append_cmd(&c->current_cmd, c->n_delimiter, &c->head_input))
@@ -60,33 +59,44 @@ int cy2_convert_cmd1b(t_cmdconvert *c)
         printf("DEBUG: Commande créée avec %d arguments\n", c->n_delimiter);
     }
     
-    // Ensuite seulement, traiter les redirections
-    if (c->nature_delimiter == 1 && c->current_input && 
-        c->current_input->input)
+    // Boucle pour traiter toutes les redirections consécutives
+    while (c->current_input && c->current_input->input)
     {
+        // Vérifier si c'est une redirection (< ou >)
         int is_redir = c->current_input->input[0] == '<' || 
                       c->current_input->input[0] == '>';
-                      
-        if (is_redir)
+        
+        // Si ce n'est pas une redirection, sortir de la boucle
+        if (!is_redir)
+            break;
+        
+        printf("DEBUG: Traitement de redirection pour '%s'\n", 
+               c->current_input->input);
+        
+        // Sauvegarder le nœud actuel au cas où
+        t_input *redir_node = c->current_input;
+        
+        // Traiter la redirection
+        int skip = cy2_fill_redir(&c->current_cmd, &c->current_input, 
+                                 &c->nature_delimiter);
+        
+        // En cas d'échec, restaurer le pointeur et sortir
+        if (skip == 0)
         {
-            printf("DEBUG: Traitement de redirection pour '%s'\n", 
-                   c->current_input->input);
+            printf("DEBUG: Échec du traitement de redirection\n");
+            if (!c->current_input)
+                c->current_input = redir_node;
             
-            t_input *redir_node = c->current_input;
-            int skip = cy2_fill_redir(&c->current_cmd, &c->current_input, 
-                                     &c->nature_delimiter);
-                                     
-            if (skip == 0)
-            {
-                printf("DEBUG: Échec du traitement de redirection\n");
-                if (!c->current_input) {
-                    c->current_input = redir_node;
-                }
-                
-                if (redir_node && redir_node->next)
-                    c->current_input = redir_node->next;
-            }
+            if (redir_node && redir_node->next)
+                c->current_input = redir_node->next;
+            
+            break;
         }
+        
+        // Après chaque redirection, nature_delimiter peut avoir changé
+        // Si ce n'est plus une redirection ou si on a atteint un pipe, sortir
+        if (c->nature_delimiter != 1)
+            break;
     }
     
     // Traiter les pipes
