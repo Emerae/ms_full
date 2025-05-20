@@ -43,11 +43,10 @@ int	cy3_fill_input_type(t_input *head)
 	return (0);
 }
 
-int cy3_substi_check(t_input **head_input, char **env)
+int cy3_substi_check(t_input **head_input, char **env, t_list *envl)
 {
     int ret;
 
-    // Remplir les types d'entrée
     ret = cy3_fill_input_type(*head_input);
     if (ret)
     {
@@ -56,7 +55,6 @@ int cy3_substi_check(t_input **head_input, char **env)
     }
     print_input_list(*head_input);
     
-    // Fusionner les nœuds sans espace
     ret = cy3_fuse_nospace(*head_input);
     if (ret)
     {
@@ -64,9 +62,7 @@ int cy3_substi_check(t_input **head_input, char **env)
         return (1);
     }
     
-    // Ajouter l'expansion des variables d'environnement ici
-    printf("DEBUG: Appel de cy3_scan_dollar_syntax pour l'expansion des variables\n");
-    ret = cy3_scan_dollar_syntax(*head_input, env);
+    ret = cy3_scan_dollar_syntax(*head_input, env, envl);
     if (ret)
     {
         printf("ERROR: Échec de l'expansion des variables\n");

@@ -44,7 +44,7 @@ int			size_var(char *str, t_list *envl, char **value)
 	int		i;
 
 	if (str[0] == '?')
-		var = ft_strdup("?begin");
+		var = ft_strdup("?exitcode");
 	else
 	{
 		size = ft_strlen(str);

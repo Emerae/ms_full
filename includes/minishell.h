@@ -9,8 +9,11 @@
 # include <fcntl.h>
 # include <sys/wait.h>
 # include <sys/types.h>
+#include "parser_new.h"
 # define NB_CMD 3
 # define SIZE_PATH 4096
+
+typedef struct s_cmd t_cmd;
 
 extern int		g_signal;
 void	simple_parse(char *command);

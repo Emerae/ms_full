@@ -46,14 +46,14 @@
 void	update_return(t_list **envl, int err)
 {
 	if (g_signal == 2)
-		add_env("?begin", ft_itoa(130), envl, -1);
+		add_env("?exitcode", ft_itoa(130), envl, -1);
 	else
-		add_env("?begin", ft_itoa(err), envl, -1);
+		add_env("?exitcode", ft_itoa(err), envl, -1);
 }
 
 int		get_return(t_list *envl)
 {
-	return (ft_atoi(search_in_env(envl, "?begin")));
+	return (ft_atoi(search_in_env(envl, "?exitcode")));
 }
 
 void	update_env(t_list **envl)

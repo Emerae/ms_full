@@ -72,7 +72,7 @@ t_cmd *parse_command_new(char *line, t_list *env, int *status)
     }
     
     // Utiliser env_array au lieu de env
-    if (cy3_substi_check(&head, env_array)) {
+    if (cy3_substi_check(&head, env_array, env)) {
         printf("DEBUG: cy3_substi_check a échoué\n");
         free_tab(env_array);
         cy0_free_input_list(head);

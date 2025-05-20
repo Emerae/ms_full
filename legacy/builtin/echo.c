@@ -55,34 +55,107 @@ static int	is_option_n(char *s)
 	return (*s == '\0');             /* accept only pure n’s                 */
 }
 
-int	builtin_echo(t_cmd *cmd, int fd_out)
+int builtin_echo(char **argv)
 {
-	int	i;
-	int	print_nl;
-
-	if (!cmd || !cmd->args || !cmd->args[0])
-		return (1);                       /* internal misuse – bail out    */
-
-	i = 1;
-	print_nl = 1;
-
-	/* ---------- option parsing (-n / -nnn / …) -------------------------- */
-	while (is_option_n(cmd->args[i]))
-	{
-		print_nl = 0;
-		++i;
-	}
-
-	/* ---------- body ----------------------------------------------------- */
-	while (cmd->args[i])
-	{
-		ft_putstr_fd(cmd->args[i], fd_out);
-		if (cmd->args[i + 1])
-			ft_putchar_fd(' ', fd_out);
-		++i;
-	}
-	if (print_nl)
-		ft_putchar_fd('\n', fd_out);
-
-	return (0);
+    ft_putstr_fd("\n*** DÉBUT BUILTIN ECHO ***\n", STDERR_FILENO);
+    
+    int i = 1;
+    int newline = 1;
+    
+    // Vérifier l'état des descripteurs de fichiers
+    ft_putstr_fd("État des descripteurs pour echo:\n", STDERR_FILENO);
+    ft_putstr_fd("  STDOUT_FILENO (1): ", STDERR_FILENO);
+    if (fcntl(STDOUT_FILENO, F_GETFL) == -1) {
+        ft_putstr_fd("FERMÉ! Ceci est un problème critique!\n", STDERR_FILENO);
+    } else {
+        ft_putstr_fd("OUVERT\n", STDERR_FILENO);
+    }
+    
+    // Vérifier si l'option -n est présente
+    ft_putstr_fd("Vérification de l'option -n...\n", STDERR_FILENO);
+    if (argv[1] && ft_strcmp(argv[1], "-n") == 0)
+    {
+        ft_putstr_fd("Option -n détectée\n", STDERR_FILENO);
+        newline = 0;
+        i = 2;
+    }
+    else {
+        ft_putstr_fd("Option -n non détectée\n", STDERR_FILENO);
+    }
+    
+    // Compter les arguments
+    int arg_count = 0;
+    while (argv[arg_count])
+        arg_count++;
+    
+    ft_putstr_fd("Nombre total d'arguments: ", STDERR_FILENO);
+    ft_putstr_fd(ft_itoa(arg_count), STDERR_FILENO);
+    ft_putstr_fd("\n", STDERR_FILENO);
+    
+    // Afficher tous les arguments
+    ft_putstr_fd("Arguments à afficher:\n", STDERR_FILENO);
+    while (argv[i])
+    {
+        ft_putstr_fd("  argv[", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(i), STDERR_FILENO);
+        ft_putstr_fd("] = '", STDERR_FILENO);
+        ft_putstr_fd(argv[i], STDERR_FILENO);
+        ft_putstr_fd("'\n", STDERR_FILENO);
+        i++;
+    }
+    i = 1;
+    
+    // Traitement de l'option -n
+    if (argv[1] && ft_strcmp(argv[1], "-n") == 0)
+        i = 2;
+    
+    // Afficher les arguments sur la sortie standard
+    ft_putstr_fd("Écriture sur la sortie standard...\n", STDERR_FILENO);
+    while (argv[i])
+    {
+        size_t len = ft_strlen(argv[i]);
+        ft_putstr_fd("  Écriture de '", STDERR_FILENO);
+        ft_putstr_fd(argv[i], STDERR_FILENO);
+        ft_putstr_fd("' (longueur=", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(len), STDERR_FILENO);
+        ft_putstr_fd(")\n", STDERR_FILENO);
+        
+        ssize_t written = write(STDOUT_FILENO, argv[i], len);
+        
+        ft_putstr_fd("  Résultat de write(): ", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(written), STDERR_FILENO);
+        ft_putstr_fd("\n", STDERR_FILENO);
+        
+        if (written < 0) {
+            ft_putstr_fd("  ERREUR D'ÉCRITURE: ", STDERR_FILENO);
+            ft_putstr_fd(strerror(errno), STDERR_FILENO);
+            ft_putstr_fd("\n", STDERR_FILENO);
+        }
+        
+        if (argv[i + 1]) {
+            ft_putstr_fd("  Écriture d'un espace\n", STDERR_FILENO);
+            write(STDOUT_FILENO, " ", 1);
+        }
+        
+        i++;
+    }
+    
+    // Ajouter une nouvelle ligne si nécessaire
+    if (newline) {
+        ft_putstr_fd("Écriture du retour à la ligne\n", STDERR_FILENO);
+        write(STDOUT_FILENO, "\n", 1);
+    } else {
+        ft_putstr_fd("Pas de retour à la ligne (option -n)\n", STDERR_FILENO);
+    }
+    
+    // Vider le tampon de sortie
+    ft_putstr_fd("Synchronisation de la sortie standard (fsync)...\n", STDERR_FILENO);
+    if (fsync(STDOUT_FILENO) == -1) {
+        ft_putstr_fd("  AVERTISSEMENT: fsync() a échoué: ", STDERR_FILENO);
+        ft_putstr_fd(strerror(errno), STDERR_FILENO);
+        ft_putstr_fd("\n", STDERR_FILENO);
+    }
+    
+    ft_putstr_fd("*** FIN BUILTIN ECHO ***\n\n", STDERR_FILENO);
+    return 0;
 }

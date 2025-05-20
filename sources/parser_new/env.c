@@ -128,7 +128,7 @@ void	parse_env(t_list **envl, char **env)
 
 	i = 0;
 	*envl = NULL;
-	new = init_entry("?begin", -1);
+	new = init_entry("?exitcode", -1);
 	ft_lstadd_back(envl, new);
 	while (env[i])
 	{

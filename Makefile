@@ -21,6 +21,7 @@ SRCS    = sources/main.c \
           sources/parser_new/parser/pars/cy1_input_list.c \
           sources/parser_new/parser/pars/cy1_input_list1.c \
           sources/parser_new/parser/pars/cy1_input_list2.c \
+        sources/parser_new/parser/pars/cy2_filter_redirs.c \
           sources/parser_new/parser/pars/cy2_1_fill_builtin.c \
           sources/parser_new/parser/pars/cy2_2_fill_redir.c \
           sources/parser_new/parser/pars/cy2_2_fill_redir2.c \

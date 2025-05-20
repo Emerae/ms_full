@@ -57,7 +57,7 @@ int			ft_exit(t_info *cmd, t_list **envl)
 
 	if (number_of_args(cmd->argv) < 2)
 	{
-		exit_value = ft_atoi(search_in_env(*envl, "?begin"));
+		exit_value = ft_atoi(search_in_env(*envl, "?exitcode"));
 		free_exit(cmd, envl);
 		exit(exit_value);
 	}

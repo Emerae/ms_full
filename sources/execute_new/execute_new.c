@@ -31,7 +31,7 @@ int builtin_unset(char **args, t_list **envl)
                 
                 // Ne pas supprimer les variables spéciales comme ?begin
                 if (ft_strcmp(env_var->var, args[i]) == 0 && 
-                    ft_strcmp(env_var->var, "?begin") != 0)
+                    ft_strcmp(env_var->var, "?exitcode") != 0)
                 {
                     // Retirer le nœud de la liste
                     if (prev)
@@ -247,7 +247,7 @@ int builtin_export(char **argv, t_list **envl)
         while (cur)
         {
             t_env *e = (t_env *)cur->content;
-            if (e->exported && ft_strcmp(e->var, "?begin") != 0 && ft_strcmp(e->var, "_") != 0)
+            if (e->exported && ft_strcmp(e->var, "?exitcode") != 0 && ft_strcmp(e->var, "_") != 0)
             {
                 ft_putstr_fd("declare -x ", STDOUT_FILENO);
                 ft_putstr_fd(e->var, STDOUT_FILENO);
@@ -368,30 +368,101 @@ int builtin_exit(char **argv)
     
     return code;
 }
+
 static int run_builtin(t_cmd *cmd, t_list **envl)
 {
+    ft_putstr_fd("\n==== EXÉCUTION D'UNE COMMANDE BUILTIN ====\n", STDERR_FILENO);
+    
     if (!cmd || !cmd->args || !cmd->args[0])
-        return (0);
+    {
+        ft_putstr_fd("ERREUR: Commande builtin invalide\n", STDERR_FILENO);
+        return 0;
+    }
+    
+    ft_putstr_fd("Commande builtin: '", STDERR_FILENO);
+    ft_putstr_fd(cmd->args[0], STDERR_FILENO);
+    ft_putstr_fd("' (builtin_id = ", STDERR_FILENO);
+    ft_putstr_fd(ft_itoa(cmd->builtin_id), STDERR_FILENO);
+    ft_putstr_fd(")\n", STDERR_FILENO);
+    
+    // Afficher les arguments
+    int arg_idx = 0;
+    ft_putstr_fd("Arguments:\n", STDERR_FILENO);
+    while (cmd->args[arg_idx])
+    {
+        ft_putstr_fd("  arg[", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(arg_idx), STDERR_FILENO);
+        ft_putstr_fd("] = '", STDERR_FILENO);
+        ft_putstr_fd(cmd->args[arg_idx], STDERR_FILENO);
+        ft_putstr_fd("'\n", STDERR_FILENO);
+        arg_idx++;
+    }
+    
+    // Vérifier l'état des descripteurs de fichiers standards
+    ft_putstr_fd("État des descripteurs standards:\n", STDERR_FILENO);
+    ft_putstr_fd("  STDIN_FILENO (0): ", STDERR_FILENO);
+    if (fcntl(STDIN_FILENO, F_GETFL) == -1) {
+        ft_putstr_fd("FERMÉ\n", STDERR_FILENO);
+    } else {
+        ft_putstr_fd("OUVERT\n", STDERR_FILENO);
+    }
+    
+    ft_putstr_fd("  STDOUT_FILENO (1): ", STDERR_FILENO);
+    if (fcntl(STDOUT_FILENO, F_GETFL) == -1) {
+        ft_putstr_fd("FERMÉ\n", STDERR_FILENO);
+    } else {
+        ft_putstr_fd("OUVERT\n", STDERR_FILENO);
+    }
     
     int result = -1;
     
-    // Utiliser directement le builtin_id déterminé par le parser
+    // Identifier la commande builtin et l'exécuter
     if (cmd->builtin_id == 1 || cmd->builtin_id == 2)  // echo avec ou sans option -n
+    {
+        ft_putstr_fd("Exécution de la builtin 'echo'\n", STDERR_FILENO);
         result = builtin_echo(cmd->args);
+    }
     else if (cmd->builtin_id == 3)  // cd
+    {
+        ft_putstr_fd("Exécution de la builtin 'cd'\n", STDERR_FILENO);
         result = builtin_cd(cmd->args, envl);
+    }
     else if (cmd->builtin_id == 4)  // pwd
+    {
+        ft_putstr_fd("Exécution de la builtin 'pwd'\n", STDERR_FILENO);
         result = builtin_pwd();
+    }
     else if (cmd->builtin_id == 5)  // export
+    {
+        ft_putstr_fd("Exécution de la builtin 'export'\n", STDERR_FILENO);
         result = builtin_export(cmd->args, envl);
+    }
     else if (cmd->builtin_id == 6)  // unset
+    {
+        ft_putstr_fd("Exécution de la builtin 'unset'\n", STDERR_FILENO);
         result = builtin_unset(cmd->args, envl);
+    }
     else if (cmd->builtin_id == 7)  // env
+    {
+        ft_putstr_fd("Exécution de la builtin 'env'\n", STDERR_FILENO);
         result = builtin_env(*envl);
+    }
     else if (cmd->builtin_id == 8)  // exit
+    {
+        ft_putstr_fd("Exécution de la builtin 'exit'\n", STDERR_FILENO);
         result = builtin_exit(cmd->args);
+    }
+    else
+    {
+        ft_putstr_fd("ERREUR: builtin_id inconnu\n", STDERR_FILENO);
+    }
     
-    return (result);
+    ft_putstr_fd("Résultat de la commande builtin: ", STDERR_FILENO);
+    ft_putstr_fd(ft_itoa(result), STDERR_FILENO);
+    ft_putstr_fd("\n", STDERR_FILENO);
+    ft_putstr_fd("==== FIN D'EXÉCUTION DE COMMANDE BUILTIN ====\n\n", STDERR_FILENO);
+    
+    return result;
 }
 
 /* ------------ redirections --------------- */
@@ -587,62 +658,189 @@ int apply_redirs(t_redir *r)
 /* ------------ execution helpers ------------- */
 int launch_external(char **args, t_list *envl)
 {
-    // Créer un tableau d'environnement à partir de la liste chaînée
-    char **env_array = create_env_tab(envl, 2); // 2 pour n'inclure que les variables exportées
-    if (!env_array) {
-        ft_putstr_fd("minishell: environnement non disponible\n", STDERR_FILENO);
-        return (127);
+    ft_putstr_fd("\n==== LANCEMENT D'UNE COMMANDE EXTERNE ====\n", STDERR_FILENO);
+    
+    // Vérifier les arguments
+    if (!args || !args[0])
+    {
+        ft_putstr_fd("ERREUR: Arguments de commande manquants\n", STDERR_FILENO);
+        return 127;
     }
-
-    // Si c'est un chemin absolu ou relatif
+    
+    // Afficher tous les arguments
+    int arg_idx = 0;
+    ft_putstr_fd("Arguments de la commande:\n", STDERR_FILENO);
+    while (args[arg_idx])
+    {
+        ft_putstr_fd("  arg[", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(arg_idx), STDERR_FILENO);
+        ft_putstr_fd("] = '", STDERR_FILENO);
+        ft_putstr_fd(args[arg_idx], STDERR_FILENO);
+        ft_putstr_fd("'\n", STDERR_FILENO);
+        arg_idx++;
+    }
+    
+    // Vérifier l'état des descripteurs de fichiers
+    ft_putstr_fd("État des descripteurs standards:\n", STDERR_FILENO);
+    ft_putstr_fd("  STDIN_FILENO (0): ", STDERR_FILENO);
+    if (fcntl(STDIN_FILENO, F_GETFL) == -1) {
+        ft_putstr_fd("FERMÉ\n", STDERR_FILENO);
+    } else {
+        ft_putstr_fd("OUVERT\n", STDERR_FILENO);
+    }
+    
+    ft_putstr_fd("  STDOUT_FILENO (1): ", STDERR_FILENO);
+    if (fcntl(STDOUT_FILENO, F_GETFL) == -1) {
+        ft_putstr_fd("FERMÉ\n", STDERR_FILENO);
+    } else {
+        ft_putstr_fd("OUVERT\n", STDERR_FILENO);
+    }
+    
+    // Créer le tableau d'environnement
+    ft_putstr_fd("Création du tableau d'environnement...\n", STDERR_FILENO);
+    char **env_array = create_env_tab(envl, 0);  // 0 pour inclure toutes les variables
+    if (!env_array)
+    {
+        ft_putstr_fd("ERREUR: Impossible de créer le tableau d'environnement\n", STDERR_FILENO);
+        return 127;
+    }
+    
+    // Afficher les 5 premières variables d'environnement pour vérification
+    ft_putstr_fd("Échantillon des variables d'environnement:\n", STDERR_FILENO);
+    int env_idx = 0;
+    while (env_array[env_idx] && env_idx < 5)
+    {
+        ft_putstr_fd("  env[", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(env_idx), STDERR_FILENO);
+        ft_putstr_fd("] = '", STDERR_FILENO);
+        ft_putstr_fd(env_array[env_idx], STDERR_FILENO);
+        ft_putstr_fd("'\n", STDERR_FILENO);
+        env_idx++;
+    }
+    
+    // Vérifier si c'est un chemin absolu ou relatif
     if (args[0][0] == '/' || (args[0][0] == '.' && args[0][1] == '/'))
     {
+        ft_putstr_fd("Chemin absolu ou relatif détecté: '", STDERR_FILENO);
+        ft_putstr_fd(args[0], STDERR_FILENO);
+        ft_putstr_fd("'\n", STDERR_FILENO);
+        
+        // Vérifier si le fichier existe et est exécutable
+        if (access(args[0], F_OK) == -1) {
+            ft_putstr_fd("ERREUR: Le fichier n'existe pas\n", STDERR_FILENO);
+            free_tab(env_array);
+            return 127;
+        }
+        
+        if (access(args[0], X_OK) == -1) {
+            ft_putstr_fd("ERREUR: Permission d'exécution refusée\n", STDERR_FILENO);
+            free_tab(env_array);
+            return 126;
+        }
+        
+        ft_putstr_fd("Tentative d'exécution avec execve...\n", STDERR_FILENO);
         execve(args[0], args, env_array);
-        perror(args[0]);
+        
+        // Si on arrive ici, execve a échoué
+        ft_putstr_fd("ERREUR: execve a échoué: ", STDERR_FILENO);
+        ft_putstr_fd(strerror(errno), STDERR_FILENO);
+        ft_putstr_fd(" (errno=", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(errno), STDERR_FILENO);
+        ft_putstr_fd(")\n", STDERR_FILENO);
+        
         free_tab(env_array);
-        return (127);
+        return 127;
     }
     
     // Chercher dans PATH
+    ft_putstr_fd("Recherche de la commande dans le PATH...\n", STDERR_FILENO);
     char *path = get_env_value(envl, "PATH");
-    if (path)
+    
+    if (!path)
     {
-        char *path_copy = ft_strdup(path);
-        if (!path_copy) {
-            free_tab(env_array);
-            return (127);
-        }
-            
-        char *current = path_copy;
-        char *next_colon;
-        char full_path[4096];
-        
-        while (current && *current)
-        {
-            next_colon = ft_strchr(current, ':');
-            if (next_colon)
-                *next_colon = '\0';
-                
-            ft_memset(full_path, 0, sizeof(full_path));
-            ft_strlcpy(full_path, current, sizeof(full_path));
-            ft_strlcat(full_path, "/", sizeof(full_path));
-            ft_strlcat(full_path, args[0], sizeof(full_path));
-            
-            execve(full_path, args, env_array);
-            
-            if (!next_colon)
-                break;
-                
-            current = next_colon + 1;
-        }
-        
-        free(path_copy);
+        ft_putstr_fd("ERREUR: Variable PATH non définie\n", STDERR_FILENO);
         free_tab(env_array);
+        return 127;
     }
     
+    ft_putstr_fd("PATH = '", STDERR_FILENO);
+    ft_putstr_fd(path, STDERR_FILENO);
+    ft_putstr_fd("'\n", STDERR_FILENO);
+    
+    char *path_copy = ft_strdup(path);
+    if (!path_copy)
+    {
+        ft_putstr_fd("ERREUR: Impossible de dupliquer PATH\n", STDERR_FILENO);
+        free_tab(env_array);
+        return 127;
+    }
+    
+    // Parcourir chaque répertoire du PATH
+    ft_putstr_fd("Parcours des répertoires du PATH:\n", STDERR_FILENO);
+    char *dir = path_copy;
+    char *next_dir = NULL;
+    char full_path[4096];
+    int found = 0;
+    int dir_count = 0;
+    
+    while (dir && *dir && !found)
+    {
+        dir_count++;
+        next_dir = ft_strchr(dir, ':');
+        if (next_dir)
+            *next_dir = '\0';
+        
+        ft_putstr_fd("  Répertoire ", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(dir_count), STDERR_FILENO);
+        ft_putstr_fd(": '", STDERR_FILENO);
+        ft_putstr_fd(dir, STDERR_FILENO);
+        ft_putstr_fd("'\n", STDERR_FILENO);
+        
+        // Construire le chemin complet
+        ft_memset(full_path, 0, 4096);
+        ft_strlcpy(full_path, dir, 4096);
+        ft_strlcat(full_path, "/", 4096);
+        ft_strlcat(full_path, args[0], 4096);
+        
+        ft_putstr_fd("  Chemin complet: '", STDERR_FILENO);
+        ft_putstr_fd(full_path, STDERR_FILENO);
+        ft_putstr_fd("'\n", STDERR_FILENO);
+        
+        // Vérifier si le fichier existe et est exécutable
+        if (access(full_path, F_OK) == -1) {
+            ft_putstr_fd("  Fichier non trouvé\n", STDERR_FILENO);
+        } 
+        else if (access(full_path, X_OK) == -1) {
+            ft_putstr_fd("  Permission d'exécution refusée\n", STDERR_FILENO);
+        }
+        else {
+            ft_putstr_fd("  Fichier exécutable trouvé! Tentative d'exécution...\n", STDERR_FILENO);
+            execve(full_path, args, env_array);
+            
+            // Si on arrive ici, execve a échoué
+            ft_putstr_fd("  ERREUR: execve a échoué: ", STDERR_FILENO);
+            ft_putstr_fd(strerror(errno), STDERR_FILENO);
+            ft_putstr_fd(" (errno=", STDERR_FILENO);
+            ft_putstr_fd(ft_itoa(errno), STDERR_FILENO);
+            ft_putstr_fd(")\n", STDERR_FILENO);
+            found = 1;
+        }
+        
+        if (next_dir)
+            dir = next_dir + 1;
+        else
+            dir = NULL;
+    }
+    
+    free(path_copy);
+    free_tab(env_array);
+    
+    ft_putstr_fd("ERREUR FINALE: Commande '", STDERR_FILENO);
     ft_putstr_fd(args[0], STDERR_FILENO);
-    ft_putstr_fd(": command not found\n", STDERR_FILENO);
-    return (127);
+    ft_putstr_fd("' non trouvée\n", STDERR_FILENO);
+    ft_putstr_fd("==== FIN DU LANCEMENT DE COMMANDE EXTERNE ====\n\n", STDERR_FILENO);
+    
+    return 127;
 }
 
 int exec_simple(t_cmd *cmd, t_list **envl)
@@ -700,149 +898,127 @@ int exec_simple(t_cmd *cmd, t_list **envl)
 
 int execute_pipeline(t_cmd *head, t_list **envl)
 {
-    int pipes[2][2];  // Double buffer pour gérer les pipes entre processus
-    int current_pipe = 0;
-    int last_status = 0;
+    int pipes[2][2];
+    int current_pipe;
+    int last_status;
     pid_t *pids;
-    int cmd_count = 0;
+    int cmd_count;
     
-    // Compter le nombre de commandes pour allouer le tableau de PIDs
+    ft_putstr_fd("\n==== DÉBUT D'EXÉCUTION DU PIPELINE ====\n", STDERR_FILENO);
+    
+    // Initialisation
+    current_pipe = 0;
+    last_status = 0;
+    cmd_count = 0;
+    
+    // Compter les commandes non-vides et filtrer les commandes vides
+    t_cmd *valid_cmds[100]; // Tableau pour stocker les commandes valides
     t_cmd *count = head;
     while (count) {
-        cmd_count++;
+        if (count->args && count->args[0]) { // Commande non-vide
+            valid_cmds[cmd_count++] = count;
+            ft_putstr_fd("Commande valide trouvée: ", STDERR_FILENO);
+            ft_putstr_fd(count->args[0], STDERR_FILENO);
+            ft_putstr_fd("\n", STDERR_FILENO);
+        } else {
+            ft_putstr_fd("Commande vide ignorée\n", STDERR_FILENO);
+        }
         count = count->next;
     }
+    
+    ft_putstr_fd("Nombre de commandes valides: ", STDERR_FILENO);
+    ft_putstr_fd(ft_itoa(cmd_count), STDERR_FILENO);
+    ft_putstr_fd("\n", STDERR_FILENO);
+    
+    if (cmd_count == 0) {
+        ft_putstr_fd("Aucune commande valide à exécuter\n", STDERR_FILENO);
+        return 0;
+    }
+    
+    // Initialiser les pipes à -1
+    pipes[0][0] = -1; pipes[0][1] = -1;
+    pipes[1][0] = -1; pipes[1][1] = -1;
     
     pids = malloc(sizeof(pid_t) * cmd_count);
     if (!pids)
         return 1;
     
-    // Exécuter les commandes
-    t_cmd *cmd = head;
-    int cmd_index = 0;
-    
-    while (cmd)
-    {
+    // Exécuter uniquement les commandes valides
+    for (int i = 0; i < cmd_count; i++) {
+        t_cmd *cmd = valid_cmds[i];
+        
+        ft_putstr_fd("\nEXÉCUTION DE LA COMMANDE ", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(i + 1), STDERR_FILENO);
+        ft_putstr_fd("/", STDERR_FILENO);
+        ft_putstr_fd(ft_itoa(cmd_count), STDERR_FILENO);
+        ft_putstr_fd(": ", STDERR_FILENO);
+        ft_putstr_fd(cmd->args[0], STDERR_FILENO);
+        ft_putstr_fd("\n", STDERR_FILENO);
+        
         // Créer un nouveau pipe si ce n'est pas la dernière commande
-        if (cmd->next)
-        {
-            if (pipe(pipes[current_pipe]) == -1)
-            {
+        if (i < cmd_count - 1) {
+            if (pipe(pipes[current_pipe]) == -1) {
                 perror("pipe");
                 free(pids);
                 return 1;
             }
+            
+            ft_putstr_fd("Pipe créé: [", STDERR_FILENO);
+            ft_putstr_fd(ft_itoa(pipes[current_pipe][0]), STDERR_FILENO);
+            ft_putstr_fd(", ", STDERR_FILENO);
+            ft_putstr_fd(ft_itoa(pipes[current_pipe][1]), STDERR_FILENO);
+            ft_putstr_fd("]\n", STDERR_FILENO);
         }
         
         // Fork pour exécuter la commande
-        pids[cmd_index] = fork();
-        if (pids[cmd_index] == -1)
-        {
+        pids[i] = fork();
+        if (pids[i] == -1) {
             perror("fork");
             free(pids);
             return 1;
         }
         
-        if (pids[cmd_index] == 0)  // Processus enfant
-        {
-            // Si ce n'est pas la première commande, rediriger l'entrée depuis le pipe précédent
-            if (cmd_index > 0)
-            {
+        if (pids[i] == 0) { // Processus enfant
+            // Si ce n'est pas la première commande, rediriger l'entrée
+            if (i > 0) {
                 dup2(pipes[1 - current_pipe][0], STDIN_FILENO);
                 close(pipes[1 - current_pipe][0]);
                 close(pipes[1 - current_pipe][1]);
             }
             
-            // Si ce n'est pas la dernière commande, rediriger la sortie vers le pipe actuel
-            if (cmd->next)
-            {
+            // Si ce n'est pas la dernière commande, rediriger la sortie
+            if (i < cmd_count - 1) {
                 close(pipes[current_pipe][0]);
                 dup2(pipes[current_pipe][1], STDOUT_FILENO);
                 close(pipes[current_pipe][1]);
             }
             
-            // Fermer tous les descripteurs de fichiers non utilisés
-            for (int i = 3; i < 256; i++)
-                if (i != STDIN_FILENO && i != STDOUT_FILENO && i != STDERR_FILENO)
-                    close(i);
-            
-            // Appliquer les redirections spécifiées dans la commande
+            // Appliquer les redirections spécifiées
             if (apply_redirs(cmd->redirs))
                 exit(1);
             
             // Exécuter la commande
-            int status;
             if (cmd->builtin_id != -1) // Commande built-in
-            {
-                status = run_builtin(cmd, envl);
-                exit(status);
-            }
+                exit(run_builtin(cmd, envl));
             else // Commande externe
-            {
-                // Convertir envl en tableau d'environnement
-                char **env_array = create_env_tab(*envl, 2);
-                if (!env_array)
-                    exit(127);
-                
-                // Si c'est un chemin absolu
-                if (cmd->args[0][0] == '/' || (cmd->args[0][0] == '.' && cmd->args[0][1] == '/'))
-                {
-                    execve(cmd->args[0], cmd->args, env_array);
-                    perror(cmd->args[0]);
-                }
-                else // Chercher dans le PATH
-                {
-                    char *path = get_env_value(*envl, "PATH");
-                    if (path)
-                    {
-                        char *path_copy = ft_strdup(path);
-                        if (path_copy)
-                        {
-                            char *token = strtok(path_copy, ":");
-                            while (token)
-                            {
-                                char full_path[4096];
-                                ft_strlcpy(full_path, token, sizeof(full_path));
-                                ft_strlcat(full_path, "/", sizeof(full_path));
-                                ft_strlcat(full_path, cmd->args[0], sizeof(full_path));
-                                
-                                execve(full_path, cmd->args, env_array);
-                                token = strtok(NULL, ":");
-                            }
-                            free(path_copy);
-                        }
-                    }
-                }
-                free_tab(env_array);
-                ft_putstr_fd(cmd->args[0], STDERR_FILENO);
-                ft_putstr_fd(": command not found\n", STDERR_FILENO);
-                exit(127);
-            }
+                exit(launch_external(cmd->args, *envl));
         }
         
         // Processus parent
-        if (cmd_index > 0)
-        {
-            // Fermer le pipe précédent qui a été dupliqué dans l'enfant
+        if (i > 0) {
             close(pipes[1 - current_pipe][0]);
             close(pipes[1 - current_pipe][1]);
         }
         
-        // Passer à la commande suivante
-        cmd = cmd->next;
-        cmd_index++;
-        current_pipe = 1 - current_pipe;  // Alterner entre les deux pipes
+        current_pipe = 1 - current_pipe;
     }
     
-    // Attendre la fin de tous les processus enfants
-    for (int i = 0; i < cmd_count; i++)
-    {
+    // Attendre la fin de tous les processus
+    for (int i = 0; i < cmd_count; i++) {
         int status;
         waitpid(pids[i], &status, 0);
         
-        // Sauvegarder le statut du dernier processus
-        if (i == cmd_count - 1)
-        {
+        if (i == cmd_count - 1) { // Dernier processus
             if (WIFEXITED(status))
                 last_status = WEXITSTATUS(status);
             else if (WIFSIGNALED(status))
@@ -863,15 +1039,23 @@ int execute_cmds(t_cmd *cmds, t_list **envl, int *last_status)
     if (!cmds)
         return (0);
     
-    // Afficher le premier argument pour le débogage
+    // Afficher le premier argument et les redirections pour le débogage
     if (cmds->args && cmds->args[0]) {
         printf("DEBUG: Premier argument: %s\n", cmds->args[0]);
-        if (cmds->args[1])
-            printf("DEBUG: Deuxième argument: %s\n", cmds->args[1]);
+        
+        // Afficher les redirections
+        if (cmds->redirs) {
+            printf("DEBUG: Redirections pour la commande:\n");
+            t_redir *r = cmds->redirs;
+            int count = 0;
+            while (r) {
+                printf("DEBUG:   [%d] type=%d, file='%s'\n", count++, r->type, r->file);
+                r = r->next;
+            }
+        } else {
+            printf("DEBUG: Pas de redirections pour cette commande\n");
+        }
     }
-    
-    // Nous ne clonons pas la commande ici car ce sera fait dans les fonctions 
-    // exec_simple ou execute_pipeline
     
     // Vérifier si c'est une commande simple ou un pipeline
     if (!cmds->next) {
