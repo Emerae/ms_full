@@ -35,64 +35,73 @@ int	cy_add_empty_cmd_node(t_cmd *head_cmd)
 
 int cy2_convert_cmd1b(t_cmdconvert *c)
 {
-    // Obtenir le nombre de délimiteurs et le type (pipe, redirection, etc.)
+    // Obtenir le nombre de délimiteurs et le type
     c->n_delimiter = find_delim(&c->current_input, &c->nature_delimiter);
     
-    // Si find_delim renvoie une erreur, retourner une erreur
+    // Si find_delim renvoie une erreur
     if (c->n_delimiter == -1)
     {
         cy0_free_cmd_list(c->head_cmd);
         return (0);
     }
     
-    // CORRECTION IMPORTANTE: Avancer le pointeur d'entrée au-delà des redirections
+    // Traiter les redirections
     if (c->nature_delimiter == 1 && c->current_input && 
-        c->current_input->input && 
-        (c->current_input->input[0] == '<' || c->current_input->input[0] == '>'))
+        c->current_input->input)
     {
-        printf("DEBUG: Avancer manuellement après la redirection\n");
-        
-        // Redirection détectée, avancer au-delà du fichier qui suit
-        t_input *temp = c->current_input;
-        // Sauter la redirection
-        if (temp) temp = temp->next;
-        
-        // Sauter les espaces qui suivent
-        while (temp && temp->type == 1)
-            temp = temp->next;
-            
-        // Sauter le fichier de redirection
-        if (temp) temp = temp->next;
-        
-        // Mettre à jour le pointeur courant
-        c->current_input = temp;
-        
-        // Retourner -1 pour continuer le traitement
-        return (-1);
-    }
-    
-    // Si find_delim renvoie 0, c'est un cas spécial (comme un pipe)
-    if (c->n_delimiter == 0)
-    {
-        printf("DEBUG: find_delim a renvoyé 0, nature=%d\n", c->nature_delimiter);
-        
-        // CORRECTION: Avancer au-delà du pipe si c'est un pipe
-        if (c->nature_delimiter == 2 && c->current_input && 
-            c->current_input->input && c->current_input->input[0] == '|')
+        // Vérification sécurisée du symbole de redirection
+        int is_redir = c->current_input->input[0] == '<' || 
+                      c->current_input->input[0] == '>';
+                      
+        if (is_redir)
         {
-            printf("DEBUG: Avancer après le pipe '%s'\n", c->current_input->input);
-            c->current_input = c->current_input->next;
+            printf("DEBUG: Traitement de redirection pour '%s'\n", 
+                   c->current_input->input);
+            
+            // Stocker le pointeur actuel pour plus de sécurité
+            t_input *redir_node = c->current_input;
+            
+            // Utiliser cy2_fill_redir pour traiter la redirection
+            int skip = cy2_fill_redir(&c->current_cmd, &c->current_input, 
+                                     &c->nature_delimiter);
+                                     
+            if (skip == 0)
+            {
+                printf("DEBUG: Échec du traitement de redirection\n");
+                if (!c->current_input) {
+                    // Réinitialiser pour éviter NULL
+                    c->current_input = redir_node;
+                }
+                
+                // Continuer malgré l'échec
+                if (redir_node && redir_node->next)
+                    c->current_input = redir_node->next;
+            }
+            
+            return (-1);  // Continuer le traitement
         }
-        
-        // Ne pas essayer d'ajouter une commande, juste continuer
-        return (-1);
     }
     
-    // Ajouter la commande avec le nombre de délimiteurs spécifié
-    if (append_cmd(&c->current_cmd, c->n_delimiter, &c->head_input))
+    // Traiter les pipes
+    if (c->nature_delimiter == 2 && c->current_input && 
+        c->current_input->input && c->current_input->input[0] == '|')
     {
-        cy0_free_cmd_list(c->head_cmd);
-        return (0);
+        printf("DEBUG: Pipe détecté: '%s'\n", c->current_input->input);
+        
+        // Ne pas considérer le pipe comme une commande
+        c->current_input = c->current_input->next;
+        
+        return (-1);  // Continuer le traitement
+    }
+    
+    // Traitement normal des commandes
+    if (c->n_delimiter > 0)
+    {
+        if (append_cmd(&c->current_cmd, c->n_delimiter, &c->head_input))
+        {
+            cy0_free_cmd_list(c->head_cmd);
+            return (0);
+        }
     }
     
     return (-1);

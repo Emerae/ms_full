@@ -116,93 +116,82 @@ static void cy2_fill_redir_3(t_cmd **current_cmd, t_input **current_input,
 
 int cy2_fill_redir(t_cmd **current_cmd, t_input **current_input, int *nature)
 {
-    // Vérifier si le nœud actuel existe et si c'est une redirection
-    if (!current_input || !*current_input || !(*current_input)->input)
+    // Vérifier les arguments
+    if (!current_cmd || !*current_cmd || !current_input || !*current_input)
     {
-        printf("DEBUG-REDIR: Aucun nœud d'entrée valide pour la redirection\n");
+        printf("DEBUG-REDIR: Arguments invalides\n");
         return (0);
     }
     
-    printf("DEBUG-REDIR: Vérification de '%s' pour redirection\n", (*current_input)->input);
+    t_input *redir_node = *current_input;
     
-    // Vérifier si c'est une redirection connue
-    int redir_type = redir_type_from_str((*current_input)->input);
+    // Vérifier si c'est bien une redirection
+    int redir_type = redir_type_from_str(redir_node->input);
     if (redir_type < 0)
     {
-        printf("DEBUG-REDIR: Ce n'est pas une redirection reconnue\n");
+        printf("DEBUG-REDIR: '%s' n'est pas une redirection\n", 
+               redir_node->input);
         return (0);
     }
     
-    // On a trouvé une redirection! Trouver le fichier associé
-    t_input *file_node = (*current_input)->next;
-    int nodes_skipped = 1;  // On a déjà traité le symbole de redirection
-    
-    // Sauter les espaces
+    // Trouver le fichier associé (sauter les espaces)
+    t_input *file_node = redir_node->next;
     while (file_node && file_node->type == 1)
-    {
         file_node = file_node->next;
-        nodes_skipped++;
-    }
     
-    // Vérifier si on a bien un nom de fichier
+    // Vérifier que le fichier existe
     if (!file_node || !file_node->input)
     {
-        printf("DEBUG-REDIR: Pas de fichier trouvé après la redirection\n");
+        printf("DEBUG-REDIR: Pas de fichier après redirection\n");
         return (0);
     }
     
-    printf("DEBUG-REDIR: Création d'une redirection de type %d pour le fichier '%s'\n", 
-           redir_type, file_node->input);
-    
-    // Créer une nouvelle structure de redirection
+    // Créer la structure de redirection
     t_redir *new_redir = malloc(sizeof(t_redir));
     if (!new_redir)
-    {
-        printf("DEBUG-REDIR: Échec d'allocation pour la redirection\n");
         return (0);
-    }
     
-    // Initialiser la structure
     new_redir->type = redir_type;
     new_redir->file = cy_true_strdup(file_node->input);
     new_redir->next = NULL;
     
     if (!new_redir->file)
     {
-        printf("DEBUG-REDIR: Échec d'allocation pour le nom de fichier\n");
         free(new_redir);
         return (0);
     }
     
-    // Ajouter la redirection à la commande
+    printf("DEBUG-REDIR: Redirection type %d vers '%s' créée\n",
+           redir_type, new_redir->file);
+    
+    // Ajouter à la liste des redirections
     if (!(*current_cmd)->redirs)
     {
-        // Première redirection pour cette commande
         (*current_cmd)->redirs = new_redir;
-        printf("DEBUG-REDIR: Première redirection ajoutée\n");
     }
     else
     {
-        // Ajouter à la fin de la liste
         t_redir *last = (*current_cmd)->redirs;
         while (last->next)
             last = last->next;
         last->next = new_redir;
-        printf("DEBUG-REDIR: Redirection ajoutée à la fin de la liste\n");
     }
     
     // Avancer au-delà du fichier
     *current_input = file_node->next;
-    nodes_skipped++; // +1 pour le fichier
     
-    // Mettre à jour le type de délimiteur si nécessaire
-    if (*current_input && (*current_input)->input && (*current_input)->input[0] == '|')
-        *nature = 2;  // Pipe
-    else if (!*current_input)
-        *nature = 3;  // Fin de commande
+    // Mettre à jour le type de délimiteur
+    if (*current_input)
+    {
+        if ((*current_input)->input && (*current_input)->input[0] == '|')
+            *nature = 2;  // Pipe
+        else
+            *nature = 0;  // Autre
+    }
+    else
+    {
+        *nature = 3;  // Fin
+    }
     
-    printf("DEBUG-REDIR: Retour de %d nœuds traités, nature=%d\n", 
-           nodes_skipped, *nature);
-    
-    return (nodes_skipped);
+    return (1);
 }

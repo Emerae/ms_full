@@ -95,8 +95,20 @@ int append_cmd(t_cmd **current_cmd, int n_delimiter, t_input **head_input)
     t_input *input_node;
 
     input_node = *head_input;
+    
+    // Vérifier si c'est un pipe (ne pas traiter comme commande)
+    if (input_node && input_node->input && 
+        input_node->input[0] == '|' && input_node->input[1] == '\0')
+    {
+        // Avancer au-delà du pipe
+        *head_input = input_node->next;
+        return (0);
+    }
+    
+    // Allocation et création de la commande
     if (append_cmd1(&new_cmd, n_delimiter))
         return (1);
+        
     if (append_cmd2(new_cmd, n_delimiter, &input_node))
     {
         free(new_cmd->args);
@@ -107,6 +119,17 @@ int append_cmd(t_cmd **current_cmd, int n_delimiter, t_input **head_input)
     // Filtrer les redirections des arguments
     filter_cmd_redirections(new_cmd);
     
+    // Vérifier si la commande a des arguments valides
+    if (!new_cmd->args || !new_cmd->args[0])
+    {
+        printf("DEBUG: Commande vide ignorée\n");
+        free(new_cmd->args);
+        free(new_cmd);
+        *head_input = input_node;
+        return (0);
+    }
+    
+    // Ajouter la commande à la liste
     append_cmd3(new_cmd, current_cmd);
     *head_input = input_node;
     return (0);
