@@ -465,191 +465,200 @@ static int run_builtin(t_cmd *cmd, t_list **envl)
     return result;
 }
 
+
+/* Traite le heredoc et écrit son contenu dans le pipe */
+void process_heredoc(int pipe_fd, char *delimiter)
+{
+    char buffer[4096];
+    char c;
+    int i;
+    int stdout_copy;
+    
+    stdout_copy = dup(STDOUT_FILENO);
+    
+    while (1)
+    {
+        ft_putstr_fd("> ", stdout_copy);
+        
+        i = 0;
+        while (i < 4095)
+        {
+            if (read(STDIN_FILENO, &c, 1) <= 0)
+            {
+                close(pipe_fd);
+                close(stdout_copy);
+                return;
+            }
+            
+            write(stdout_copy, &c, 1);
+            
+            if (c == '\n')
+                break;
+                
+            buffer[i++] = c;
+        }
+        buffer[i] = '\0';
+        
+        if (ft_strcmp(buffer, delimiter) == 0)
+            break;
+            
+        write(pipe_fd, buffer, i);
+        write(pipe_fd, "\n", 1);
+    }
+    
+    close(pipe_fd);
+    close(stdout_copy);
+}
+
+
 /* ------------ redirections --------------- */
-int apply_redirs(t_redir *r)
+/* Trouve la dernière redirection de chaque type */
+static void find_last_redirs(t_redir *r, t_redir **input, 
+                           t_redir **output, t_redir **heredoc)
+{
+    t_redir *current;
+
+    *input = NULL;
+    *output = NULL;
+    *heredoc = NULL;
+    current = r;
+    
+    while (current)
+    {
+        if (current->type == 0)
+            *input = current;
+        else if (current->type == 1 || current->type == 2)
+            *output = current;
+        else if (current->type == 3)
+            *heredoc = current;
+        current = current->next;
+    }
+}
+
+/* Applique une redirection de sortie */
+static int apply_output_redir(t_redir *output)
 {
     int fd;
-    t_redir *current;
+    int flags;
     
-    // Première étape: créer/tronquer tous les fichiers de sortie
-    current = r;
-    while (current)
+    if (!output)
+        return (0);
+    
+    flags = O_CREAT | O_WRONLY;
+    if (output->type == 1)
+        flags |= O_TRUNC;
+    else
+        flags |= O_APPEND;
+    
+    fd = open(output->file, flags, 0644);
+    if (fd == -1)
     {
-        // Pour les redirections de sortie (> ou >>)
-        if (current->type == 1)
-        {
-            printf("DEBUG-EXEC: Creating/truncating file '%s'\n", current->file);
-            fd = open(current->file, O_CREAT|O_WRONLY|O_TRUNC, 0644);
-            if (fd == -1)
-            {
-                perror(current->file);
-                return (1);
-            }
-            close(fd);
-        }
-        else if (current->type == 2)
-        {
-            printf("DEBUG-EXEC: Opening file for append '%s'\n", current->file);
-            fd = open(current->file, O_CREAT|O_WRONLY|O_APPEND, 0644);
-            if (fd == -1)
-            {
-                perror(current->file);
-                return (1);
-            }
-            close(fd);
-        }
-        current = current->next;
+        perror(output->file);
+        return (1);
     }
     
-    // Deuxième étape: appliquer seulement la dernière redirection de chaque type
-    t_redir *last_input = NULL;
-    t_redir *last_output = NULL;
-    t_redir *last_heredoc = NULL;
-    
-    current = r;
-    while (current)
+    if (dup2(fd, STDOUT_FILENO) == -1)
     {
-        if (current->type == 0) // Redirection d'entrée (<)
-            last_input = current;
-        else if (current->type == 1 || current->type == 2) // Redirection de sortie (> ou >>)
-            last_output = current;
-        else if (current->type == 3) // Heredoc (<<)
-            last_heredoc = current;
-        current = current->next;
-    }
-    
-    // Appliquer la dernière redirection de sortie
-    if (last_output)
-    {
-        printf("DEBUG-EXEC: Applying last output redirection to '%s'\n", last_output->file);
-        int flags = O_CREAT|O_WRONLY;
-        if (last_output->type == 1)
-            flags |= O_TRUNC;
-        else
-            flags |= O_APPEND;
-            
-        fd = open(last_output->file, flags, 0644);
-        if (fd == -1)
-        {
-            perror(last_output->file);
-            return (1);
-        }
-        
-        if (dup2(fd, STDOUT_FILENO) == -1)
-        {
-            close(fd);
-            return (perror("dup2"), 1);
-        }
         close(fd);
+        return (1);
+    }
+    close(fd);
+    return (0);
+}
+
+/* Applique une redirection d'entrée */
+static int apply_input_redir(t_redir *input)
+{
+    int fd;
+    
+    if (!input)
+        return (0);
+    
+    fd = open(input->file, O_RDONLY);
+    if (fd == -1)
+    {
+        perror(input->file);
+        return (1);
     }
     
-    // Appliquer le heredoc si présent (priorité sur la redirection d'entrée classique)
+    if (dup2(fd, STDIN_FILENO) == -1)
+    {
+        close(fd);
+        return (1);
+    }
+    close(fd);
+    return (0);
+}
+
+/* Applique un heredoc */
+static int apply_heredoc(t_redir *heredoc)
+{
+    int pipefd[2];
+    pid_t pid;
+    int status;
+    
+    if (!heredoc)
+        return (0);
+    
+    if (pipe(pipefd) == -1)
+        return (1);
+    
+    pid = fork();
+    if (pid == -1)
+    {
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return (1);
+    }
+    
+    if (pid == 0)
+    {
+        close(pipefd[0]);
+        process_heredoc(pipefd[1], heredoc->file);
+        exit(0);
+    }
+    
+    close(pipefd[1]);
+    waitpid(pid, &status, 0);
+    
+    if (dup2(pipefd[0], STDIN_FILENO) == -1)
+    {
+        close(pipefd[0]);
+        return (1);
+    }
+    close(pipefd[0]);
+    return (0);
+}
+
+/* Fonction principale pour appliquer les redirections */
+int apply_redirs(t_redir *r)
+{
+    t_redir *last_input;
+    t_redir *last_output;
+    t_redir *last_heredoc;
+    
+    if (!r)
+        return (0);
+    
+    /* Trouver les dernières redirections */
+    find_last_redirs(r, &last_input, &last_output, &last_heredoc);
+    
+    /* Appliquer dans l'ordre : heredoc ou input, puis output */
     if (last_heredoc)
     {
-        printf("DEBUG-EXEC: Processing heredoc with delimiter '%s'\n", last_heredoc->file);
-        
-        int pipefd[2];
-        if (pipe(pipefd) == -1)
-        {
-            perror("pipe");
+        if (apply_heredoc(last_heredoc))
             return (1);
-        }
-        
-        pid_t pid = fork();
-        if (pid == -1)
-        {
-            perror("fork");
-            close(pipefd[0]);
-            close(pipefd[1]);
-            return (1);
-        }
-        
-        if (pid == 0)
-        {
-            // Processus enfant: lit l'entrée utilisateur
-            close(pipefd[0]);  // Ferme le côté lecture
-            
-            char buffer[4096];
-            size_t len;
-            
-            // Configurer la sortie pour que l'utilisateur puisse voir le prompt du heredoc
-            int stdout_copy = dup(STDOUT_FILENO);
-            
-            while (1)
-            {
-                // Afficher le prompt sur la sortie standard originale
-                ft_putstr_fd("> ", stdout_copy);
-                
-                // Lire une ligne de l'entrée standard
-                int i = 0;
-                while (i < 4095)
-                {
-                    if (read(STDIN_FILENO, &buffer[i], 1) <= 0)
-                        exit(1);
-                    
-                    // Afficher le caractère lu sur la sortie standard originale
-                    write(stdout_copy, &buffer[i], 1);
-                    
-                    if (buffer[i] == '\n')
-                    {
-                        buffer[i] = '\0';
-                        break;
-                    }
-                    i++;
-                }
-                buffer[i] = '\0';
-                
-                // Vérifier si c'est le délimiteur
-                if (ft_strcmp(buffer, last_heredoc->file) == 0)
-                    break;
-                
-                // Écrire la ligne dans le pipe (avec un retour à la ligne)
-                len = ft_strlen(buffer);
-                write(pipefd[1], buffer, len);
-                write(pipefd[1], "\n", 1);
-            }
-            
-            close(pipefd[1]);
-            close(stdout_copy);
-            exit(0);
-        }
-        else
-        {
-            // Processus parent
-            close(pipefd[1]);  // Ferme le côté écriture
-            
-            // Attendre la fin du processus enfant
-            int status;
-            waitpid(pid, &status, 0);
-            
-            // Rediriger l'entrée standard vers le pipe
-            if (dup2(pipefd[0], STDIN_FILENO) == -1)
-            {
-                perror("dup2");
-                close(pipefd[0]);
-                return (1);
-            }
-            
-            close(pipefd[0]);
-        }
     }
-    // Appliquer la dernière redirection d'entrée (seulement si pas de heredoc)
     else if (last_input)
     {
-        printf("DEBUG-EXEC: Applying last input redirection from '%s'\n", last_input->file);
-        fd = open(last_input->file, O_RDONLY);
-        if (fd == -1)
-        {
-            perror(last_input->file);
+        if (apply_input_redir(last_input))
             return (1);
-        }
-        
-        if (dup2(fd, STDIN_FILENO) == -1)
-        {
-            close(fd);
-            return (perror("dup2"), 1);
-        }
-        close(fd);
+    }
+    
+    if (last_output)
+    {
+        if (apply_output_redir(last_output))
+            return (1);
     }
     
     return (0);
@@ -896,105 +905,223 @@ int exec_simple(t_cmd *cmd, t_list **envl)
     return (128 + WTERMSIG(status));
 }
 
-
-int execute_pipeline(t_cmd *head, t_list **envl)
+/* Nettoie les pipes (ferme les descripteurs et libère la mémoire) */
+static void	cleanup_pipes(int **pipes, int pipe_count)
 {
-    int in_fd = STDIN_FILENO;
-    int last_status = 0;
-    int pipefd[2];
+	int	i;
 
-    t_cmd *c = head;
-    while (c)
-    {
-        if (c->next)
-        {
-            if (pipe(pipefd) == -1)
-            {
-                perror("pipe");
-                return (1);
-            }
-        }
-            
-        pid_t pid = fork();
-        if (pid == -1)
-        {
-            perror("fork");
-            return (1);
-        }
-            
-        if (pid == 0)
-        {
-            // Gestion des descripteurs
-            if (in_fd != STDIN_FILENO)
-            {
-                dup2(in_fd, STDIN_FILENO);
-                close(in_fd);
-            }
-            if (c->next)
-            {
-                dup2(pipefd[1], STDOUT_FILENO);
-                close(pipefd[0]);
-                close(pipefd[1]);
-            }
-            
-            if (c->redirs) {
-                printf("DEBUG: Redirections pour la commande dans pipeline %s:\n", 
-                    c->args ? c->args[0] : "(null)");
-                t_redir *r_debug = c->redirs;
-                int redir_count = 0;
-                while (r_debug) {
-                    printf("DEBUG: Redirection %d: type=%d, file=%s\n", 
-                        redir_count++, r_debug->type, r_debug->file);
-                    r_debug = r_debug->next;
-                }
-            }
-            
-            // Appliquer les redirections
-            if (apply_redirs(c->redirs))
-                exit(1);
-                
-            // Exécuter la commande
-            if (c->builtin_id != -1)
-            {
-                // C'est un builtin
-                int result = run_builtin(c, envl);
-                exit(result);
-            }
-            else if (c->args && c->args[0])
-            {
-                // Commande externe
-                exit(launch_external(c->args, *envl));
-            }
-            else
-            {
-                exit(0);  // Aucune commande
-            }
-        }
-        
-        // Parent
-        if (in_fd != STDIN_FILENO)
-            close(in_fd);
-        if (c->next)
-        {
-            close(pipefd[1]);
-            in_fd = pipefd[0];
-        }
-        
-        c = c->next;
-    }
-    
-    // Attendre tous les processus enfants
-    int status;
-    pid_t pid;
-    while ((pid = wait(&status)) > 0)
-    {
-        if (WIFEXITED(status))
-            last_status = WEXITSTATUS(status);
-        else if (WIFSIGNALED(status))
-            last_status = 128 + WTERMSIG(status);
-    }
-        
-    return (last_status);
+	i = 0;
+	while (i < pipe_count)
+	{
+		close(pipes[i][0]);
+		close(pipes[i][1]);
+		free(pipes[i]);
+		i++;
+	}
+	free(pipes);
+}
+
+/* Nettoie les pipes et libère le tableau de pids */
+static void	cleanup_pipes_and_pids(int **pipes, int pipe_count, pid_t *pids)
+{
+	cleanup_pipes(pipes, pipe_count);
+	free(pids);
+}
+
+/* Attend la fin des processus enfants et récupère le statut */
+static void	wait_for_children(pid_t *pids, int cmd_count, int *last_status)
+{
+	int	i;
+	int	status;
+
+	i = 0;
+	while (i < cmd_count)
+	{
+		waitpid(pids[i], &status, 0);
+		if (i == cmd_count - 1)
+		{
+			if (WIFEXITED(status))
+				*last_status = WEXITSTATUS(status);
+			else if (WIFSIGNALED(status))
+				*last_status = 128 + WTERMSIG(status);
+		}
+		i++;
+	}
+}
+
+/* Fonction pour initialiser les pipes */
+static int	init_pipes(int ***pipes, int pipe_count)
+{
+	int	i;
+	int	j;
+
+	*pipes = malloc(sizeof(int*) * pipe_count);
+	if (!(*pipes))
+		return (1);
+	i = 0;
+	while (i < pipe_count)
+	{
+		(*pipes)[i] = malloc(sizeof(int) * 2);
+		if (!(*pipes)[i])
+		{
+			j = 0;
+			while (j < i)
+			{
+				free((*pipes)[j]);
+				j++;
+			}
+			free(*pipes);
+			return (1);
+		}
+		if (pipe((*pipes)[i]) == -1)
+		{
+			j = 0;
+			while (j < i)
+			{
+				close((*pipes)[j][0]);
+				close((*pipes)[j][1]);
+				free((*pipes)[j]);
+				j++;
+			}
+			free(*pipes);
+			return (1);
+		}
+		i++;
+	}
+	return (0);
+}
+
+/* Ferme les descripteurs non utilisés dans l'enfant */
+static void	close_unused_child(int **pipes, int i, int pipe_count)
+{
+	int	j;
+
+	j = 0;
+	while (j < pipe_count)
+	{
+		if (j == i - 1)
+			close(pipes[j][1]); /* Fermer write du pipe d'entrée */
+		else if (j == i)
+			close(pipes[j][0]); /* Fermer read du pipe de sortie */
+		else
+		{
+			close(pipes[j][0]); /* Fermer tous les autres pipes */
+			close(pipes[j][1]);
+		}
+		j++;
+	}
+}
+
+/* Configure stdin et stdout dans l'enfant */
+static void	setup_child_io(int **pipes, int i, int cmd_count)
+{
+	if (i > 0)
+	{
+		if (dup2(pipes[i - 1][0], STDIN_FILENO) == -1)
+		{
+			perror("dup2 stdin");
+			exit(1);
+		}
+		close(pipes[i - 1][0]); /* Fermer après dup2 */
+	}
+	if (i < cmd_count - 1)
+	{
+		if (dup2(pipes[i][1], STDOUT_FILENO) == -1)
+		{
+			perror("dup2 stdout");
+			exit(1);
+		}
+		close(pipes[i][1]); /* Fermer après dup2 */
+	}
+}
+
+/* Ferme les descripteurs dans le parent après fork */
+static void	close_parent_fds(int **pipes, int i, int cmd_count)
+{
+	if (i > 0)
+		close(pipes[i - 1][0]); /* Fermer read du pipe précédent */
+	if (i < cmd_count - 1 && i > 0)
+		close(pipes[i - 1][1]); /* Fermer write du pipe précédent */
+}
+
+int	execute_pipeline(t_cmd *head, t_list **envl)
+{
+	int		pipe_count;
+	int		**pipes;
+	pid_t	*pids;
+	int		last_status;
+	t_cmd	*cmd;
+	int		cmd_count;
+	int		i;
+
+	/* Compter les commandes valides */
+	cmd_count = 0;
+	cmd = head;
+	while (cmd)
+	{
+		if (cmd->args && cmd->args[0])
+			cmd_count++;
+		cmd = cmd->next;
+	}
+	if (cmd_count == 0)
+		return (0);
+
+	/* Initialiser et vérifier les pipes */
+	pipe_count = cmd_count - 1;
+	if (init_pipes(&pipes, pipe_count))
+		return (1);
+
+	/* Allouer les PIDs */
+	pids = malloc(sizeof(pid_t) * cmd_count);
+	if (!pids)
+	{
+		/* Nettoyage en cas d'erreur */
+		cleanup_pipes(pipes, pipe_count);
+		return (1);
+	}
+
+	/* Exécuter les commandes */
+	i = 0;
+	cmd = head;
+	while (cmd && i < cmd_count)
+	{
+		if (!cmd->args || !cmd->args[0])
+		{
+			cmd = cmd->next;
+			continue;
+		}
+		pids[i] = fork();
+		if (pids[i] == -1)
+		{
+			cleanup_pipes_and_pids(pipes, pipe_count, pids);
+			return (1);
+		}
+		if (pids[i] == 0)
+		{
+			/* Processus enfant */
+			close_unused_child(pipes, i, pipe_count);
+			setup_child_io(pipes, i, cmd_count);
+			if (cmd->redirs && apply_redirs(cmd->redirs))
+				exit(1);
+			if (cmd->builtin_id != -1)
+				exit(run_builtin(cmd, envl));
+			else
+				exit(launch_external(cmd->args, *envl));
+		}
+		else
+		{
+			/* Processus parent */
+			close_parent_fds(pipes, i, cmd_count);
+		}
+		cmd = cmd->next;
+		i++;
+	}
+
+	/* Fermer les derniers descripteurs et libérer les ressources */
+	cleanup_pipes(pipes, pipe_count);
+	wait_for_children(pids, cmd_count, &last_status);
+	free(pids);
+	return (last_status);
 }
 
 
