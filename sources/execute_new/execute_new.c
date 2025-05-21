@@ -1007,21 +1007,42 @@ int execute_cmds(t_cmd *cmds, t_list **envl, int *last_status)
     if (!cmds)
         return (0);
     
-    // Afficher le premier argument pour le débogage
-    if (cmds->args && cmds->args[0]) {
-        printf("DEBUG: Premier argument: %s\n", cmds->args[0]);
-        if (cmds->args[1])
-            printf("DEBUG: Deuxième argument: %s\n", cmds->args[1]);
+    // Fix pipeline structure - TRÈS IMPORTANT: CONSERVER LE RETOUR!
+    t_cmd *fixed_cmds = fix_pipeline_structure(cmds);
+    if (!fixed_cmds)
+    {
+        *last_status = 0;
+        return (0);
+    }
+    
+    // Afficher les informations sur la structure corrigée
+    t_cmd *temp = fixed_cmds;
+    int cmd_count = 0;
+    printf("DEBUG: Structure du pipeline après correction:\n");
+    while (temp)
+    {
+        cmd_count++;
+        printf("DEBUG: Commande %d: %s (builtin_id=%d)\n", 
+               cmd_count, 
+               temp->args && temp->args[0] ? temp->args[0] : "(null)",
+               temp->builtin_id);
+        temp = temp->next;
     }
     
     // Vérifier si c'est une commande simple ou un pipeline
-    if (!cmds->next) {
-        // Commande simple, sans pipeline
-        *last_status = exec_simple(cmds, envl);
-    } else {
-        // Pipeline de commandes
-        *last_status = execute_pipeline(cmds, envl);
+    if (cmd_count > 1)
+    {
+        printf("DEBUG: Exécution d'un pipeline de %d commandes\n", cmd_count);
+        *last_status = execute_pipeline(fixed_cmds, envl);
     }
+    else
+    {
+        printf("DEBUG: Exécution d'une commande simple\n");
+        *last_status = exec_simple(fixed_cmds, envl);
+    }
+    printf("DEBUG: Exécution %s: première commande '%s', cmd_count=%d, fixed_cmds=%p\n", 
+       cmd_count > 1 ? "d'un pipeline" : "d'une commande simple",
+       fixed_cmds->args[0], cmd_count, fixed_cmds);
     
     printf("DEBUG: execute_cmds terminé avec status=%d\n", *last_status);
     return (*last_status);

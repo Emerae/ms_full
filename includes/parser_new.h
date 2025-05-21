@@ -231,8 +231,8 @@ void	print_input_list(t_input *head_input);
 
 // Fonctions de redirection
 int	redir_type_from_str(const char *s);
+t_cmd *fix_pipeline_structure(t_cmd *cmds);
 void merge_redirection_commands(t_cmd *head);
-void fix_pipeline_structure(t_cmd *head);
 
 
 

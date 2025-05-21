@@ -39,195 +39,277 @@ static int has_illegal_token(t_input *head, char **bad_tok)
     return (0);
 }
 
-/*
- * Répare les structures de pipeline incorrectes
- * Cette fonction doit être appelée après le parsing et avant l'exécution
+/**
+ * @brief Vérifie si une commande est en réalité un symbole de pipe
+ *
+ * @param cmd La commande à vérifier
+ * @return int 1 si c'est un pipe, 0 sinon
  */
-void fix_pipeline_structure(t_cmd *head)
+static int	is_pipe_command(t_cmd *cmd)
 {
-    if (!head)
+	if (!cmd || !cmd->args || !cmd->args[0])
+		return (0);
+	return (ft_strcmp(cmd->args[0], "|") == 0);
+}
+
+/**
+ * @brief Libère la mémoire d'une commande pipe
+ *
+ * @param cmd La commande pipe à libérer
+ */
+static void free_pipe_command(t_cmd *cmd)
+{
+    if (!cmd)
         return;
-        
-    t_cmd *current = head;
     
+    // Libérer les arguments
+    if (cmd->args)
+    {
+        int i = 0;
+        while (cmd->args[i])
+        {
+            free(cmd->args[i]);
+            i++;
+        }
+        free(cmd->args);
+    }
+    
+    // Libérer les redirections
+    if (cmd->redirs)
+    {
+        t_redir *current = cmd->redirs;
+        t_redir *next;
+        
+        while (current)
+        {
+            next = current->next;
+            if (current->file)
+                free(current->file);
+            free(current);
+            current = next;
+        }
+    }
+    
+    // Libérer la commande elle-même
+    free(cmd);
+}
+
+t_cmd *fix_pipeline_structure(t_cmd *cmds)
+{
+    t_cmd *current;
+    t_cmd *temp;
+    t_cmd *head = cmds;  // Conserver la tête initiale
+
+    printf("DEBUG: Début de fix_pipeline_structure avec head=%p\n", head);
+    if (!cmds)
+        return NULL;
+    
+    // Étape 1: Vérifier si la première commande est un pipe et la supprimer si nécessaire
+    while (head && is_pipe_command(head))
+    {
+        printf("DEBUG: Suppression d'une commande pipe en tête de liste\n");
+        temp = head;
+        head = head->next;
+        free_pipe_command(temp);
+    }
+    
+    if (!head)
+    {
+        printf("DEBUG: Après suppression, aucune commande ne reste\n");
+        return NULL;
+    }
+        
+    // Étape 2: Supprimer les commandes pipe internes
+    current = head;
     while (current && current->next)
     {
-        // Vérifier si la commande actuelle est suivie d'une "commande pipe"
-        if (current->next->args && current->next->args[0] && 
-            current->next->args[0][0] == '|' && current->next->args[0][1] == '\0')
+        if (is_pipe_command(current->next))
         {
-            printf("DEBUG: Réparation d'une structure de pipeline incorrecte\n");
-            
-            // Trouver la commande réelle après le pipe
-            t_cmd *real_next_cmd = NULL;
-            
-            if (current->next->args[1])
-            {
-                // Le nom de la vraie commande est dans les arguments
-                // Ex: args=["I", "grep", "hello"]
-                
-                // Créer une nouvelle commande avec les bons arguments
-                real_next_cmd = malloc(sizeof(t_cmd));
-                if (!real_next_cmd)
-                    return;
-                    
-                // Calculer le nombre d'arguments (tous sauf le "|")
-                int arg_count = 0;
-                while (current->next->args[arg_count + 1])
-                    arg_count++;
-                    
-                // Allouer le tableau d'arguments
-                real_next_cmd->args = malloc(sizeof(char*) * (arg_count + 1));
-                if (!real_next_cmd->args)
-                {
-                    free(real_next_cmd);
-                    return;
-                }
-                
-                // Copier les arguments (en décalant pour sauter le "|")
-                for (int i = 0; i < arg_count; i++)
-                {
-                    real_next_cmd->args[i] = ft_strdup(current->next->args[i + 1]);
-                    if (!real_next_cmd->args[i])
-                    {
-                        // Libérer ce qui a déjà été alloué
-                        for (int j = 0; j < i; j++)
-                            free(real_next_cmd->args[j]);
-                        free(real_next_cmd->args);
-                        free(real_next_cmd);
-                        return;
-                    }
-                }
-                real_next_cmd->args[arg_count] = NULL;
-                
-                // Copier les redirections éventuelles
-                real_next_cmd->redirs = current->next->redirs;
-                current->next->redirs = NULL; // Pour éviter la double libération
-                
-                // Initialiser le reste de la structure
-                real_next_cmd->builtin_id = -1; // À déterminer plus tard
-                real_next_cmd->next = current->next->next;
-                
-                // Libérer l'ancienne "commande pipe"
-                t_cmd *to_free = current->next;
-                current->next = real_next_cmd;
-                
-                // Libérer l'ancienne commande
-                for (int i = 0; to_free->args[i]; i++)
-                    free(to_free->args[i]);
-                free(to_free->args);
-                free(to_free);
-            }
-            else if (current->next->next)
-            {
-                // Le pipe et la commande ont été séparés en deux structures
-                // Supprimer simplement le noeud de pipe intermédiaire
-                t_cmd *to_free = current->next;
-                current->next = current->next->next;
-                
-                // Libérer la "commande pipe"
-                for (int i = 0; to_free->args[i]; i++)
-                    free(to_free->args[i]);
-                free(to_free->args);
-                free(to_free);
-            }
+            printf("DEBUG: Suppression d'une commande pipe interne\n");
+            temp = current->next;
+            current->next = temp->next;
+            free_pipe_command(temp);
         }
         else
         {
-            // Avancer au prochain noeud
             current = current->next;
         }
     }
     
-    // Maintenant, vérifier chaque commande pour détecter les builtins
+    // Étape 3: Ajuster les types de commande (builtin_id)
     current = head;
     while (current)
     {
         if (current->args && current->args[0])
         {
-            // Vérifier si c'est une builtin
+            // Réinitialiser builtin_id pour s'assurer qu'il est correctement attribué
             if (ft_strcmp(current->args[0], "echo") == 0)
-                current->builtin_id = (current->args[1] && ft_strcmp(current->args[1], "-n") == 0) ? 1 : 2;
-            else if (ft_strcmp(current->args[0], "cd") == 0)
-                current->builtin_id = 3;
-            else if (ft_strcmp(current->args[0], "pwd") == 0)
-                current->builtin_id = 4;
-            else if (ft_strcmp(current->args[0], "export") == 0)
-                current->builtin_id = 5;
-            else if (ft_strcmp(current->args[0], "unset") == 0)
-                current->builtin_id = 6;
-            else if (ft_strcmp(current->args[0], "env") == 0)
-                current->builtin_id = 7;
-            else if (ft_strcmp(current->args[0], "exit") == 0)
-                current->builtin_id = 8;
-        }
-        current = current->next;
-    }
-}
-
-/*
- * Fusionne les commandes qui sont en réalité des cibles de redirection
- * Cette fonction doit être appelée après le parsing et avant l'exécution
- */
-void merge_redirection_commands(t_cmd *head)
-{
-    if (!head)
-        return;
-        
-    t_cmd *current = head;
-    
-    while (current && current->next)
-    {
-        // Vérifier si la commande suivante est en réalité une cible de redirection
-        // (premiers signes: a une redirection et son nom n'est pas une commande réelle)
-        if (current->next->args && current->next->args[0] && 
-            current->next->redirs &&
-            // Vérification sommaire - peut être améliorée
-            access(current->next->args[0], X_OK) != 0)
-        {
-            printf("DEBUG: Fusion d'une commande de redirection: %s\n", 
-                  current->next->args[0]);
-            
-            // Transférer les redirections à la commande actuelle
-            if (!current->redirs)
             {
-                current->redirs = current->next->redirs;
+                if (current->args[1] && ft_strcmp(current->args[1], "-n") == 0)
+                    current->builtin_id = 1;
+                else
+                    current->builtin_id = 2;
+                printf("DEBUG: Commande '%s' identifiée comme builtin (id=%d)\n", 
+                       current->args[0], current->builtin_id);
+            }
+            else if (ft_strcmp(current->args[0], "cd") == 0)
+            {
+                current->builtin_id = 3;
+                printf("DEBUG: Commande '%s' identifiée comme builtin (id=%d)\n", 
+                       current->args[0], current->builtin_id);
+            }
+            else if (ft_strcmp(current->args[0], "pwd") == 0)
+            {
+                current->builtin_id = 4;
+                printf("DEBUG: Commande '%s' identifiée comme builtin (id=%d)\n", 
+                       current->args[0], current->builtin_id);
+            }
+            else if (ft_strcmp(current->args[0], "export") == 0)
+            {
+                current->builtin_id = 5;
+                printf("DEBUG: Commande '%s' identifiée comme builtin (id=%d)\n", 
+                       current->args[0], current->builtin_id);
+            }
+            else if (ft_strcmp(current->args[0], "unset") == 0)
+            {
+                current->builtin_id = 6;
+                printf("DEBUG: Commande '%s' identifiée comme builtin (id=%d)\n", 
+                       current->args[0], current->builtin_id);
+            }
+            else if (ft_strcmp(current->args[0], "env") == 0)
+            {
+                current->builtin_id = 7;
+                printf("DEBUG: Commande '%s' identifiée comme builtin (id=%d)\n", 
+                       current->args[0], current->builtin_id);
+            }
+            else if (ft_strcmp(current->args[0], "exit") == 0)
+            {
+                current->builtin_id = 8;
+                printf("DEBUG: Commande '%s' identifiée comme builtin (id=%d)\n", 
+                       current->args[0], current->builtin_id);
             }
             else
             {
-                // Trouver la fin de la liste de redirections
-                t_redir *last_redir = current->redirs;
-                while (last_redir->next)
-                    last_redir = last_redir->next;
-                    
-                // Attacher les redirections de la commande suivante
-                last_redir->next = current->next->redirs;
+                current->builtin_id = -1; // Commande externe
+                printf("DEBUG: Commande '%s' identifiée comme externe\n", 
+                       current->args[0]);
             }
-            
-            // Éviter double free en désactivant les redirections transférées
-            current->next->redirs = NULL;
-            
-            // Supprimer la commande suivante de la chaîne
-            t_cmd *to_remove = current->next;
-            current->next = current->next->next;
-            
-            // Libérer la mémoire de la commande supprimée
-            if (to_remove->args)
-            {
-                for (int i = 0; to_remove->args[i]; i++)
-                    free(to_remove->args[i]);
-                free(to_remove->args);
-            }
-            free(to_remove);
-            
-            // Ne pas avancer current car on a peut-être une autre fusion à faire
         }
-        else
-        {
-            // Passer à la commande suivante
-            current = current->next;
-        }
+        current = current->next;
     }
+    
+    printf("DEBUG: Fin de fix_pipeline_structure avec head=%p\n", head);
+    return head;
+}
+
+/**
+ * @brief Transfère les redirections d'une commande à une autre
+ *
+ * @param dest Commande destination
+ * @param src Commande source
+ */
+static void	transfer_redirections(t_cmd *dest, t_cmd *src)
+{
+	t_redir	*last_redir;
+
+	if (!dest || !src || !src->redirs)
+		return ;
+	if (!dest->redirs)
+	{
+		dest->redirs = src->redirs;
+		src->redirs = NULL;
+		return ;
+	}
+	last_redir = dest->redirs;
+	while (last_redir->next)
+		last_redir = last_redir->next;
+	last_redir->next = src->redirs;
+	src->redirs = NULL;
+}
+
+/**
+ * @brief Libère les arguments d'une commande
+ *
+ * @param cmd La commande dont les arguments doivent être libérés
+ */
+static void	free_cmd_args(t_cmd *cmd)
+{
+	int	i;
+
+	if (!cmd || !cmd->args)
+		return ;
+	i = 0;
+	while (cmd->args[i])
+	{
+		free(cmd->args[i]);
+		i++;
+	}
+	free(cmd->args);
+	cmd->args = NULL;
+}
+
+/**
+ * @brief Détermine si une commande est une cible de redirection
+ *
+ * @param cmd La commande à vérifier
+ * @return int 1 si c'est une cible de redirection, 0 sinon
+ */
+static int is_redirection_target(t_cmd *cmd)
+{
+    // Une commande est une cible de redirection si:
+    // 1. Elle a des redirections
+    // 2. Son premier argument est "|" ou n'est pas une commande builtin connue
+    if (!cmd || !cmd->args || !cmd->args[0])
+        return (0);
+    
+    // Vérifier si c'est un token pipe
+    if (ft_strcmp(cmd->args[0], "|") == 0)
+        return (1);
+    
+    // Vérifier si ce n'est pas une builtin connue
+    if (ft_strcmp(cmd->args[0], "echo") != 0 &&
+        ft_strcmp(cmd->args[0], "cd") != 0 &&
+        ft_strcmp(cmd->args[0], "pwd") != 0 &&
+        ft_strcmp(cmd->args[0], "export") != 0 &&
+        ft_strcmp(cmd->args[0], "unset") != 0 &&
+        ft_strcmp(cmd->args[0], "env") != 0 &&
+        ft_strcmp(cmd->args[0], "exit") != 0)
+    {
+        // Si ce n'est pas une commande connue et qu'elle a des redirections
+        if (cmd->redirs)
+            return (1);
+    }
+    
+    return (0);
+}
+
+/**
+ * @brief Fusionne les commandes de redirection avec leurs commandes principales
+ *
+ * @param head La tête de la liste de commandes
+ */
+void	merge_redirection_commands(t_cmd *head)
+{
+	t_cmd	*current;
+	t_cmd	*to_remove;
+
+	if (!head)
+		return ;
+	current = head;
+	while (current && current->next)
+	{
+		if (is_redirection_target(current->next))
+		{
+			ft_putstr_fd("DEBUG: Fusion d'une commande de redirection\n", 2);
+			transfer_redirections(current, current->next);
+			to_remove = current->next;
+			current->next = current->next->next;
+			free_cmd_args(to_remove);
+			free(to_remove);
+		}
+		else
+			current = current->next;
+	}
 }
 
 t_cmd *parse_command_new(char *line, t_list *env, int *status)
@@ -312,6 +394,19 @@ t_cmd *parse_command_new(char *line, t_list *env, int *status)
         printf("WARNING: cy2_convert_cmd a retourné NULL\n");
     } else {
         printf("DEBUG: Commande créée avec succès\n");
+        
+        // Appliquer les corrections de pipeline - ATTENTION AU RETOUR!
+        printf("DEBUG: Application des corrections de pipeline\n");
+        t_cmd *fixed_cmds = fix_pipeline_structure(cmds);
+        
+        // Mettre à jour cmds avec la nouvelle structure
+        cmds = fixed_cmds;
+        
+        // Fusionner les commandes de redirection si nécessaire
+        if (cmds) {
+            printf("DEBUG: Fusion des commandes de redirection\n");
+            merge_redirection_commands(cmds);
+        }
     }
     
     cy0_free_input_list(head);
